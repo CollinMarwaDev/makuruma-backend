@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\TripController;
 
 use App\Http\Controllers\Api\CheckpointController;
 use App\Http\Controllers\Api\TrackingController;
+use App\Http\Controllers\Api\TrackingStatusController;
+use App\Http\Controllers\Api\NotificationController;
 
 use App\Http\Controllers\Api\ExpenseOrderController;
 use App\Http\Controllers\Api\InvoiceController;
@@ -80,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('bookings/eligible-trucks', [BookingController::class, 'eligibleTrucks']);
     Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('bookings/{booking}/download', [BookingController::class, 'download']);
+    Route::post('bookings/{booking}/trucks', [BookingController::class, 'addTruck']);
+    Route::put('bookings/{booking}/trucks/{bookingTruck}', [BookingController::class, 'swapTruck']);
     Route::delete('bookings/{booking}/trucks/{bookingTruck}', [BookingController::class, 'removeTruck']);
 
     Route::apiResource('trips', TripController::class)->only(['index', 'show']);
@@ -87,13 +91,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('checkpoints', CheckpointController::class)->only(['index', 'store']);
 
+    // Tracking is per booking leg (Go / Return), contract 2.2 D-1.
     Route::get('tracking/export-excel', [TrackingController::class, 'downloadExcel']);
     Route::get('tracking', [TrackingController::class, 'index']);
-    Route::get('tracking/{truck}', [TrackingController::class, 'show']);
-    Route::put('tracking/{truck}/status', [TrackingController::class, 'updateStatus']);
-    Route::post('tracking/{truck}/milestones', [TrackingController::class, 'upsertMilestone']);
-    Route::get('tracking/{truck}/download', [TrackingController::class, 'download']);
+    Route::get('tracking/{bookingTruck}', [TrackingController::class, 'show']);
+    Route::put('tracking/{bookingTruck}/status', [TrackingController::class, 'updateStatus']);
+    Route::post('tracking/{bookingTruck}/milestones', [TrackingController::class, 'upsertMilestone']);
+    Route::get('tracking/{bookingTruck}/download', [TrackingController::class, 'download']);
     Route::put('booking-trucks/{bookingTruck}/dates', [TrackingController::class, 'updateTripDates']);
+    Route::delete('booking-trucks/{bookingTruck}/documents/{document}', [BookingTruckDocumentController::class, 'destroy']);
+    Route::get('documents/{document}/file', [DocumentController::class, 'file']);
+
+    Route::apiResource('tracking-statuses', TrackingStatusController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead']);
     Route::get('booking-trucks/{bookingTruck}/documents', [BookingTruckDocumentController::class, 'index']);
     Route::post('booking-trucks/{bookingTruck}/documents', [BookingTruckDocumentController::class, 'store']);
 

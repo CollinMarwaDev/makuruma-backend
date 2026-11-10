@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Document extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'documentable_id',
@@ -18,6 +19,7 @@ class Document extends Model
         'issue_date',
         'expiry_date',
         'attachment_path',
+        'deleted_by',
     ];
 
     protected $casts = [

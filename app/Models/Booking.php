@@ -15,6 +15,7 @@ class Booking extends Model
         'booking_number',
         'direction',
         'client_id',
+        'source_booking_id',
         'eta',
         'location',
         'loading_point',
@@ -31,6 +32,12 @@ class Booking extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Booking this one was copied from (copy & edit / return from go). */
+    public function sourceBooking(): BelongsTo
+    {
+        return $this->belongsTo(Booking::class, 'source_booking_id');
     }
 
     public function bookingTrucks(): HasMany

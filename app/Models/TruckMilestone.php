@@ -10,7 +10,7 @@ class TruckMilestone extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['truck_id', 'checkpoint_id', 'arrival_at', 'dispatch_at'];
+    protected $fillable = ['truck_id', 'booking_truck_id', 'checkpoint_id', 'arrival_at', 'dispatch_at'];
 
     protected $casts = [
         'arrival_at' => 'datetime',

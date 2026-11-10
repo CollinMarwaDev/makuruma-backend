@@ -10,7 +10,7 @@ class Checkpoint extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'sequence_order'];
+    protected $fillable = ['name', 'sequence_order', 'route'];
 
     public function milestones(): HasMany
     {

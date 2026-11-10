@@ -51,8 +51,8 @@
     @php $recentBooking = $truck->bookingTrucks->first(); @endphp
     <div class="info-grid">
         <div class="info-cell">
-            <div class="info-label">Last Booking</div>
-            <div class="info-value">{{ $recentBooking->tripLeg->trip->trip_number ?? '—' }}</div>
+            <div class="info-label">Booking / Trip</div>
+            <div class="info-value">{{ $recentBooking?->booking?->booking_number ?? '—' }} ({{ ucfirst($recentBooking?->booking?->direction ?? '') }}) · {{ $recentBooking?->trip?->trip_code ?? '—' }}</div>
         </div>
         <div class="info-cell">
             <div class="info-label">Loading Point</div>

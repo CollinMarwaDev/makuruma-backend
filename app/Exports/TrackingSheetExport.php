@@ -120,11 +120,11 @@ class TrackingSheetExport implements WithEvents, WithTitle
             $sheet->setCellValue($this->col($colIndex++) . $row, $truck->driver->phone ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $truck->current_location ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, strtoupper(str_replace('_', ' ', $truck->current_status)));
-            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->booking->loading_point ?? '—');
+            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_point ?? $bt->booking->loading_point ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_point_arrival_date ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_date ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_dispatch_date ?? '—');
-            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->booking->offloading_point ?? '—');
+            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->offloading_point ?? $bt->booking->offloading_point ?? '—');
 
             foreach ($this->checkpoints as $checkpoint) {
                 $milestone = $truck->milestones->firstWhere('checkpoint_id', $checkpoint->id);

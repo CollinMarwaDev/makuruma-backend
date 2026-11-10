@@ -80,8 +80,10 @@ class DashboardController extends Controller
             ->groupBy('current_status')
             ->pluck('total', 'current_status');
 
-        return [
+        // Fixed keys keep the dashboard groups stable; custom statuses (Parked, Clearing, …) are added as-is.
+        return $counts->map(fn ($n) => (int) $n)->all() + [
             'pending' => $counts['pending'] ?? 0,
+            'on_route_to_loading' => $counts['on_route_to_loading'] ?? 0,
             'loading' => $counts['loading'] ?? 0,
             'in_transit' => $counts['in_transit'] ?? 0,
             'at_border' => $counts['at_border'] ?? 0,
