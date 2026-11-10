@@ -21,6 +21,13 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="$HOME/makuruma-backups/$STAMP"
 PHP_FPM="${PHP_FPM:-php8.3-fpm}"
 
+# Files stay owned by the normal server user even when this runs as root (e.g. Hostinger's browser terminal).
+OWNER="${OWNER:-$( [ "$(id -u)" = 0 ] && echo collins || whoami )}"
+if [ "$(id -u)" = 0 ]; then
+  export COMPOSER_ALLOW_SUPERUSER=1
+  git config --global --get-all safe.directory | grep -qx "$APP_DIR" || git config --global --add safe.directory "$APP_DIR"
+fi
+
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 fail() { printf '\033[1;31m✖ %s\033[0m\n' "$1"; exit 1; }
 env_get() { grep -E "^$1=" "$APP_DIR/.env" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
@@ -68,19 +75,22 @@ php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
-sudo chown -R "$(whoami)":www-data storage bootstrap/cache
+sudo chown -R "$OWNER":www-data "$APP_DIR"
 sudo chmod -R ug+rwX storage bootstrap/cache
 sudo systemctl reload "$PHP_FPM"
 
 step "6/6 Scheduler (hourly tracking checks)"
 CRON_LINE="* * * * * cd $APP_DIR && php artisan schedule:run >> /dev/null 2>&1"
-if crontab -l 2>/dev/null | grep -Fq "$APP_DIR && php artisan schedule:run"; then
+CRONTAB="crontab -u $OWNER"
+[ "$(id -u)" = 0 ] || CRONTAB="crontab"
+if $CRONTAB -l 2>/dev/null | grep -Fq "$APP_DIR && php artisan schedule:run"; then
   echo "  cron entry already present"
 else
-  (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+  ($CRONTAB -l 2>/dev/null; echo "$CRON_LINE") | $CRONTAB -
   echo "  added: $CRON_LINE"
 fi
 php artisan schedule:list | grep -i tracking || true
+sudo chown -R "$OWNER":www-data "$APP_DIR"
 
 printf '\n\033[1;32m✔ API deployed (%s).\033[0m Backup: %s\n' "$(git rev-parse --short HEAD)" "$BACKUP_DIR"
 echo "  Roll back: see DEPLOY.md → Rollback (restore $BACKUP_DIR/$DB_NAME.sql and reset to $(cat "$BACKUP_DIR/previous-commit.txt"))."
