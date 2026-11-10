@@ -2,24 +2,31 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Seed the application's database.
+     * Seed reference data and a first admin account.
+     * Credentials come from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD (see .env.example).
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $this->call([RoleSeeder::class, CheckpointSeeder::class]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::firstOrCreate(
+            ['email' => env('SEED_ADMIN_EMAIL', 'admin@makuruma.local')],
+            [
+                'name' => 'System Admin',
+                'password' => env('SEED_ADMIN_PASSWORD', 'password'),
+                'role_id' => Role::where('slug', 'admin')->value('id'),
+            ],
+        );
+
+        if (app()->environment('local')) {
+            $this->call(FleetSeeder::class);
+        }
     }
 }
