@@ -4,6 +4,8 @@
 # Run it on the server from the backend folder:
 #   cd /var/www/makuruma/<backend-folder>
 #   bash scripts/deploy-server.sh            # deploys origin/main
+# The script updates itself in step 2, so run a copy to be safe:
+#   cp scripts/deploy-server.sh /tmp/ && APP_DIR=$PWD bash /tmp/deploy-server.sh
 #   bash scripts/deploy-server.sh my-branch  # deploys another branch
 #
 # What it does, in order (it stops at the first error):
@@ -17,7 +19,7 @@
 set -euo pipefail
 
 BRANCH="${1:-main}"
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="$HOME/makuruma-backups/$STAMP"
 PHP_FPM="${PHP_FPM:-php8.3-fpm}"
@@ -28,6 +30,11 @@ if [ "$(id -u)" = 0 ]; then
   export COMPOSER_ALLOW_SUPERUSER=1
   git config --global --get-all safe.directory | grep -qx "$APP_DIR" || git config --global --add safe.directory "$APP_DIR"
 fi
+
+# Admin MySQL login for the rehearsal database: Ubuntu's maintenance account if readable, else root via socket.
+mysql_admin() {
+  if [ -r /etc/mysql/debian.cnf ]; then mysql --defaults-file=/etc/mysql/debian.cnf "$@"; else sudo mysql "$@"; fi
+}
 
 step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 fail() { printf '\033[1;31m✖ %s\033[0m\n' "$1"; exit 1; }
@@ -68,19 +75,19 @@ if [ "$PENDING" -gt 0 ]; then
   # The live database is not touched unless the copy migrates cleanly and nothing is lost.
   REHEARSAL_DB="${DB_NAME}_v2_rehearsal"
   echo "  rehearsal: copying the backup into $REHEARSAL_DB …"
-  sudo mysql -e "DROP DATABASE IF EXISTS \`$REHEARSAL_DB\`; CREATE DATABASE \`$REHEARSAL_DB\`;"
-  for HOST in $(sudo mysql -N -e "SELECT host FROM mysql.user WHERE user='$DB_USER'"); do
-    sudo mysql -e "GRANT ALL PRIVILEGES ON \`$REHEARSAL_DB\`.* TO '$DB_USER'@'$HOST'; FLUSH PRIVILEGES;"
+  mysql_admin -e "DROP DATABASE IF EXISTS \`$REHEARSAL_DB\`; CREATE DATABASE \`$REHEARSAL_DB\`;"
+  for HOST in $(mysql_admin -N -e "SELECT host FROM mysql.user WHERE user='$DB_USER'"); do
+    mysql_admin -e "GRANT ALL PRIVILEGES ON \`$REHEARSAL_DB\`.* TO '$DB_USER'@'$HOST'; FLUSH PRIVILEGES;"
   done
-  sudo mysql "$REHEARSAL_DB" < "$BACKUP_DIR/$DB_NAME.sql"
+  mysql_admin "$REHEARSAL_DB" < "$BACKUP_DIR/$DB_NAME.sql"
   count_rows() {
-    sudo mysql -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='$1' AND table_type='BASE TABLE' AND table_name NOT IN ('migrations','notifications','tracking_statuses','cache','cache_locks','sessions','jobs','failed_jobs','personal_access_tokens')" \
-      | sort | while read -r t; do echo "$t $(sudo mysql -N -e "SELECT COUNT(*) FROM \`$1\`.\`$t\`")"; done
+    mysql_admin -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='$1' AND table_type='BASE TABLE' AND table_name NOT IN ('migrations','notifications','tracking_statuses','cache','cache_locks','sessions','jobs','failed_jobs','personal_access_tokens')" \
+      | sort | while read -r t; do echo "$t $(mysql_admin -N -e "SELECT COUNT(*) FROM \`$1\`.\`$t\`")"; done
   }
   count_rows "$REHEARSAL_DB" > "$BACKUP_DIR/rows-before.txt"
-  DB_DATABASE="$REHEARSAL_DB" php artisan migrate --force || { sudo mysql -e "DROP DATABASE \`$REHEARSAL_DB\`"; fail "Rehearsal migration FAILED on the copy. The live database was NOT changed. Send this output to support."; }
+  DB_DATABASE="$REHEARSAL_DB" php artisan migrate --force || { mysql_admin -e "DROP DATABASE \`$REHEARSAL_DB\`"; fail "Rehearsal migration FAILED on the copy. The live database was NOT changed. Send this output to support."; }
   count_rows "$REHEARSAL_DB" > "$BACKUP_DIR/rows-after.txt"
-  sudo mysql -e "DROP DATABASE \`$REHEARSAL_DB\`"
+  mysql_admin -e "DROP DATABASE \`$REHEARSAL_DB\`"
   # Every table that existed before must still have at least as many rows (new rows are fine,
   # e.g. the Sakania Zambia checkpoint).
   LOST="$(awk 'NR==FNR { before[$1]=$2; next } { after[$1]=$2 }
