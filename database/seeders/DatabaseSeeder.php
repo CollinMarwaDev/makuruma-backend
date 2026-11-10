@@ -25,8 +25,9 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        // Demo data (max 5 of each kind) only on a developer machine, never on the live server.
         if (app()->environment('local')) {
-            $this->call(FleetSeeder::class);
+            $this->call(DemoSeeder::class);
         }
     }
 }

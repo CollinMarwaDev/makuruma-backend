@@ -22,6 +22,7 @@ class DashboardController extends Controller
             'tracking' => $this->trackingSummary(),
             'expenses' => $this->expensesSummary(),
             'invoicing' => $this->invoicingSummary(),
+            'finance_trend' => $this->financeTrend(),
         ]);
     }
 
@@ -47,7 +48,13 @@ class DashboardController extends Controller
             ->where('expiry_date', '>=', $now)
             ->orderBy('expiry_date')
             ->limit(5)
-            ->get(['id', 'documentable_type', 'documentable_id', 'document_type', 'expiry_date']);
+            ->with('documentable')
+            ->get(['id', 'documentable_type', 'documentable_id', 'document_type', 'expiry_date'])
+            // A readable owner (truck / trailer reg no, driver or staff name) so the dashboard row can say whose document it is.
+            ->map(fn (Document $doc) => [
+                ...$doc->only(['id', 'documentable_type', 'documentable_id', 'document_type', 'expiry_date']),
+                'owner_name' => $doc->documentable?->reg_no ?? $doc->documentable?->full_name ?? $doc->documentable?->name,
+            ]);
 
         return [
             'expired' => $expired,
@@ -139,5 +146,45 @@ class DashboardController extends Controller
             'this_month' => (float) $thisMonth,
             'monthly_trend' => $monthly,
         ];
+    }
+
+    /**
+     * Revenue vs expenses for the last 6 months, both in USD.
+     * Revenue: invoice totals by invoice date. Expenses: non-rejected expense orders (recorded in TZS)
+     * by payment date (or creation date), converted with that month's average invoice exchange rate
+     * ($→TZS); months without invoices use the average rate of all invoices.
+     */
+    protected function financeTrend(): array
+    {
+        $from = now()->subMonths(5)->startOfMonth();
+
+        $revenue = Invoice::select(
+            DB::raw("DATE_FORMAT(invoice_date, '%Y-%m') as month"),
+            DB::raw('sum(total_amount) as total'),
+            DB::raw('avg(exchange_rate) as rate')
+        )->where('invoice_date', '>=', $from)->groupBy('month')->get()->keyBy('month');
+
+        $expenses = ExpenseOrder::select(
+            DB::raw("DATE_FORMAT(COALESCE(payment_date, created_at), '%Y-%m') as month"),
+            DB::raw('sum(total_amount) as total')
+        )->where('status', '!=', 'rejected')
+            ->whereRaw('COALESCE(payment_date, created_at) >= ?', [$from])
+            ->groupBy('month')->pluck('total', 'month');
+
+        $fallbackRate = (float) Invoice::where('exchange_rate', '>', 0)->avg('exchange_rate') ?: null;
+
+        return collect(range(5, 0))->map(function (int $ago) use ($revenue, $expenses, $fallbackRate) {
+            $month = now()->subMonths($ago)->format('Y-m');
+            $rate = (float) ($revenue[$month]->rate ?? 0) ?: $fallbackRate;
+            $expensesTzs = (float) ($expenses[$month] ?? 0);
+
+            return [
+                'month' => $month,
+                'revenue' => round((float) ($revenue[$month]->total ?? 0), 2),
+                'expenses' => $rate ? round($expensesTzs / $rate, 2) : null,
+                'expenses_tzs' => round($expensesTzs, 2),
+                'rate' => $rate ? round($rate, 2) : null,
+            ];
+        })->all();
     }
 }
