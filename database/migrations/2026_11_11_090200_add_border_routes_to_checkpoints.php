@@ -23,6 +23,11 @@ return new class extends Migration
         DB::table('checkpoints')->where('name', 'Sakania DRC')->update(['route' => 'sakania', 'sequence_order' => 4]);
         DB::table('checkpoints')->where('name', 'Whisky')->update(['sequence_order' => 5]);
 
+        // Legs that already recorded a Sakania checkpoint travelled via Sakania.
+        $sakaniaIds = DB::table('checkpoints')->where('route', 'sakania')->pluck('id');
+        $sakaniaLegs = DB::table('truck_milestones')->whereIn('checkpoint_id', $sakaniaIds)->whereNotNull('booking_truck_id')->pluck('booking_truck_id');
+        DB::table('booking_trucks')->whereIn('id', $sakaniaLegs)->update(['route' => 'sakania']);
+
         // Existing installs only; a fresh install gets the full list from CheckpointSeeder.
         $hasCheckpoints = DB::table('checkpoints')->where('name', 'Kasumbalesa Zambia')->exists();
         if ($hasCheckpoints && !DB::table('checkpoints')->where('name', 'Sakania Zambia')->exists()) {

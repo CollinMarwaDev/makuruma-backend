@@ -41,8 +41,13 @@ class TrackingLegService
 
         $truck = $leg->truck;
         if ($truck && $this->isLatestLeg($leg)) {
-            // The truck's newest leg is done, so the truck is free again.
-            $truck->update(['current_status' => TrackingStatus::COMPLETED, 'trip_status' => 'off_duty']);
+            // A finished Return leg frees the truck. A finished Go leg leaves it "on a Go trip awaiting
+            // return" so it can still be put on a Return booking (contract 2.1 B: Return from Go).
+            $leg->loadMissing('booking:id,direction');
+            $truck->update(array_filter([
+                'current_status' => TrackingStatus::COMPLETED,
+                'trip_status' => $leg->booking?->direction === 'return' ? 'off_duty' : null,
+            ]));
         }
     }
 

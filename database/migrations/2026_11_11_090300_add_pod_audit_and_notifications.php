@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -25,6 +26,16 @@ return new class extends Migration
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });
+
+        // The 5-day rules start on the day this release goes live. Legs already offloaded more than
+        // 5 days ago are closed quietly, so the first scheduler run does not send an alert for every
+        // past trip. Trucks are left as they are.
+        $cutoff = now()->subDays(5)->toDateString();
+        DB::table('booking_trucks')->whereNotNull('offloading_date')->whereDate('offloading_date', '<=', $cutoff)
+            ->whereNull('pod_overdue_notified_at')->update(['pod_overdue_notified_at' => now()]);
+        DB::table('booking_trucks')->whereNotNull('offloading_date')->whereDate('offloading_date', '<=', $cutoff)
+            ->where('current_status', '!=', 'completed')
+            ->update(['current_status' => 'completed', 'completed_at' => now(), 'auto_completed_at' => now()]);
     }
 
     public function down(): void
