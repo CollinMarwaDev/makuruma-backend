@@ -109,7 +109,7 @@ fi
 php artisan db:seed --class=CheckpointSeeder --force
 
 step "5/6 Caches, storage link, permissions, PHP-FPM"
-php artisan storage:link 2>/dev/null || true
+[ -e public/storage ] || php artisan storage:link
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
@@ -122,10 +122,10 @@ step "6/6 Scheduler (hourly tracking checks)"
 CRON_LINE="* * * * * cd $APP_DIR && php artisan schedule:run >> /dev/null 2>&1"
 CRONTAB="crontab -u $OWNER"
 [ "$(id -u)" = 0 ] || CRONTAB="crontab"
-if $CRONTAB -l 2>/dev/null | grep -Fq "$APP_DIR && php artisan schedule:run"; then
+if { $CRONTAB -l 2>/dev/null || true; } | grep -Fq "$APP_DIR && php artisan schedule:run"; then
   echo "  cron entry already present"
 else
-  ($CRONTAB -l 2>/dev/null; echo "$CRON_LINE") | $CRONTAB -
+  { $CRONTAB -l 2>/dev/null || true; echo "$CRON_LINE"; } | $CRONTAB -
   echo "  added: $CRON_LINE"
 fi
 php artisan schedule:list | grep -i tracking || true

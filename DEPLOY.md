@@ -1,5 +1,7 @@
 # Deploying Makuruma V2 to the VPS
 
+V2 went live on 2026-11-10 (backend `4674021`+, web `84cb971`). Server git configs use `core.fileMode=false`; the pre-V2 server edits are in `git stash` (backend).
+
 Server: Hostinger KVM 2, Ubuntu 24.04, `145.223.118.103`, user `collins` (in `www-data`), apps under `/var/www/makuruma/`.
 Sites: web app `https://makurmalogstics.com`, API `https://api.makurmalogstics.com`. PHP 8.3-FPM, Nginx, MySQL user `makuruma_user`.
 
@@ -77,8 +79,8 @@ Ignored files (`.env`, `storage/`, `vendor/`, `node_modules/`) stay in place.
 
 ```bash
 cd /var/www/makuruma/<backend-folder>
-git fetch origin && git checkout origin/main -- scripts/deploy-server.sh   # first time only: get the script
-bash scripts/deploy-server.sh
+git fetch origin && git show origin/main:scripts/deploy-server.sh > /tmp/deploy-backend.sh
+APP_DIR=$PWD bash /tmp/deploy-backend.sh   # the script replaces itself while it runs, so run a copy
 ```
 
 The script:
@@ -105,8 +107,8 @@ The app now uses **pnpm** (pinned in `package.json`). `corepack`, which comes wi
 
 ```bash
 cd /var/www/makuruma/<frontend-folder>
-git fetch origin && git checkout origin/main -- scripts/deploy-server.sh   # first time only
-bash scripts/deploy-server.sh
+git fetch origin && git show origin/main:scripts/deploy-server.sh > /tmp/deploy-app.sh
+APP_DIR=$PWD bash /tmp/deploy-app.sh
 ```
 
 The build goes to `dist/` in that folder. If Nginx serves a different folder, find it and pass it:
