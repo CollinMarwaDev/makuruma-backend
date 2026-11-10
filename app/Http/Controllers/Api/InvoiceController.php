@@ -45,7 +45,21 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        return $invoice->load($this->eagerLoad());
+        $invoice->load($this->eagerLoad());
+
+        // Contract 2.4: a booking can be invoiced in parts; list the trucks still waiting for this invoice type.
+        $invoice->setAttribute('uninvoiced_trucks', $this->uninvoicedQuery($invoice->booking_id, $invoice->invoice_type)
+            ->with('truck:id,reg_no')
+            ->get(['id', 'truck_id', 'current_status', 'offloading_date'])
+            ->map(fn (BookingTruck $bt) => [
+                'id' => $bt->id,
+                'reg_no' => $bt->truck?->reg_no,
+                'current_status' => $bt->current_status,
+                'offloading_date' => $bt->offloading_date,
+            ])
+            ->values());
+
+        return $invoice;
     }
 
     protected function computeLineAmount(string $invoiceType, array $lineData, BookingTruck $bookingTruck): float
@@ -230,15 +244,17 @@ class InvoiceController extends Controller
 
         $booking = Booking::findOrFail($validated['booking_id']);
 
-        return BookingTruck::where('booking_id', $booking->id)
-            ->whereNull('removed_at')
+        return $this->uninvoicedQuery($booking->id, $validated['invoice_type'])
             ->with(['truck', 'trailer', 'trip'])
-            ->whereDoesntHave('invoiceLines', function ($query) use ($validated) {
-                $query->whereHas('invoice', function ($q) use ($validated) {
-                    $q->where('invoice_type', $validated['invoice_type']);
-                });
-            })
             ->get();
+    }
+
+    /** Active trucks of a booking that are not yet on an invoice of this type (they can be invoiced later). */
+    private function uninvoicedQuery(int $bookingId, string $invoiceType)
+    {
+        return BookingTruck::where('booking_id', $bookingId)
+            ->whereNull('removed_at')
+            ->whereDoesntHave('invoiceLines', fn ($query) => $query->whereHas('invoice', fn ($q) => $q->where('invoice_type', $invoiceType)));
     }
 
     public function destroy(Invoice $invoice)

@@ -71,6 +71,12 @@
             font-size: 9px;
         }
 
+        .line-details {
+            margin-top: 2px;
+            font-size: 9px;
+            color: #555;
+        }
+
         .total-row td {
             font-weight: bold;
         }
@@ -194,7 +200,23 @@
         <tbody>
             @foreach ($invoice->lines as $line)
                 <tr>
-                    <td>{{ $line->description }}</td>
+                    @php
+                        $bt = $line->bookingTruck;
+                        $from = $bt?->loading_point ?? $invoice->booking->loading_point;
+                        $to = $bt?->offloading_point ?? $invoice->booking->offloading_point;
+                        $eta = $bt?->eta ?? $invoice->booking->eta;
+                        $details = array_filter([
+                            ($from || $to) ? ($from ?? '—') . ' to ' . ($to ?? '—') : null,
+                            $bt?->cargo,
+                            $eta ? 'ETA ' . \Illuminate\Support\Carbon::parse($eta)->format('d.m.Y') : null,
+                        ]);
+                    @endphp
+                    <td>
+                        {{ $line->description }}
+                        @if ($details)
+                            <div class="line-details">{{ implode(' · ', $details) }}</div>
+                        @endif
+                    </td>
                     <td>{{ $invoice->invoice_type === 'standing_time' ? $line->days : number_format($line->quantity, 3) }}
                     </td>
                     <td>{{ number_format($line->rate, 2) }}</td>
@@ -212,8 +234,22 @@
         <tr>
             <td style="width:60%;">
                 <span class="label">Remarks</span>
-                Being the freight charges from {{ $invoice->booking->loading_point ?? '—' }} to
-                {{ $invoice->destination ?? $invoice->booking->offloading_point ?? '—' }}.
+                @php
+                    // One route when every truck on the invoice shares it (contract 2.4), else point to the lines.
+                    $routes = $invoice->lines
+                        ->map(fn ($l) => [
+                            $l->bookingTruck?->loading_point ?? $invoice->booking->loading_point,
+                            $l->bookingTruck?->offloading_point ?? $invoice->booking->offloading_point,
+                        ])
+                        ->unique(fn ($r) => implode('|', $r));
+                    $route = $routes->count() === 1 ? $routes->first() : null;
+                @endphp
+                @if ($route || $routes->isEmpty())
+                    Being the freight charges from {{ $route[0] ?? $invoice->booking->loading_point ?? '—' }} to
+                    {{ $invoice->destination ?? $route[1] ?? $invoice->booking->offloading_point ?? '—' }}.
+                @else
+                    Being the freight charges for multiple routes (see lines above).
+                @endif
             </td>
             <td class="bank-details">
                 E.&amp;O.E<br><br>

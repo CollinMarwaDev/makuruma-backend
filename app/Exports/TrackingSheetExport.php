@@ -56,6 +56,9 @@ class TrackingSheetExport implements WithEvents, WithTitle
             ['label' => 'DATE OF LOADING', 'span' => 1],
             ['label' => 'DISPATCH', 'span' => 1],
             ['label' => 'OFFLOADING POINT', 'span' => 1],
+            ['label' => 'CARGO', 'span' => 1],
+            ['label' => 'RATE', 'span' => 1],
+            ['label' => 'ETA', 'span' => 1],
         ];
 
         $headerRow1 = 1;
@@ -125,6 +128,10 @@ class TrackingSheetExport implements WithEvents, WithTitle
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_date ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->loading_dispatch_date ?? '—');
             $sheet->setCellValue($this->col($colIndex++) . $row, $bt->offloading_point ?? $bt->booking->offloading_point ?? '—');
+            // Per-truck values (contract 2.4): trucks on one booking may differ.
+            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->cargo ?? '—');
+            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->rate !== null ? (float) $bt->rate : '—');
+            $sheet->setCellValue($this->col($colIndex++) . $row, $bt->eta ? substr((string) $bt->eta, 0, 10) : ($bt->booking->eta ? substr((string) $bt->booking->eta, 0, 10) : '—'));
 
             foreach ($this->checkpoints as $checkpoint) {
                 $milestone = $truck->milestones->firstWhere('checkpoint_id', $checkpoint->id);
