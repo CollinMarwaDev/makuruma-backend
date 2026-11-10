@@ -47,8 +47,7 @@ return new class extends Migration
         DB::table('booking_trucks')->whereNotIn('id', $latestLegs->values())->whereNotNull('offloading_date')
             ->update(['current_status' => 'completed', 'completed_at' => now()]);
 
-        // Milestones that belong to no leg (truck never booked) are meaningless now.
-        DB::table('truck_milestones')->whereNull('booking_truck_id')->delete();
+        // Milestones of trucks that were never booked keep booking_truck_id = null (kept, not deleted).
 
         Schema::table('truck_milestones', function (Blueprint $table) {
             $table->index('truck_id'); // the truck_id foreign key used the old unique index

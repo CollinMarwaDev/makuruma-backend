@@ -10,7 +10,8 @@
 #   1. Backs up the database, .env and storage/ to ~/makuruma-backups/<timestamp>/
 #   2. Records the current commit so you can roll back
 #   3. Fetches the branch from `origin` and resets the code to it (.env and storage/ are untouched)
-#   4. composer install, shows the pending migrations, asks before running them
+#   4. composer install; rehearses the migrations on a copy of the database and checks no rows
+#      are lost; only then asks before migrating the live database (in maintenance mode)
 #   5. Seeds the border-route checkpoints, rebuilds caches, fixes permissions, reloads PHP-FPM
 #   6. Makes sure the Laravel scheduler cron entry exists (auto-complete / POD alerts)
 set -euo pipefail
@@ -57,13 +58,44 @@ git log --oneline -1
 step "3/6 Dependencies"
 composer install --no-dev --optimize-autoloader --no-interaction
 
-step "4/6 Database migrations"
-php artisan migrate:status | grep -i pending || true
+step "4/6 Database migrations (rehearsal on a copy first, then live)"
+php artisan config:clear >/dev/null
 PENDING="$(php artisan migrate:status | grep -ci pending || true)"
 if [ "$PENDING" -gt 0 ]; then
-  read -r -p "  Run $PENDING pending migration(s) now? Backup is in $BACKUP_DIR [y/N] " answer
-  [[ "$answer" =~ ^[Yy]$ ]] || fail "Stopped before migrating. Code is updated; run 'php artisan migrate --force' when ready."
-  php artisan migrate --force
+  php artisan migrate:status | grep -i pending
+
+  # Rehearsal: load the backup into a throw-away database and migrate that copy.
+  # The live database is not touched unless the copy migrates cleanly and nothing is lost.
+  REHEARSAL_DB="${DB_NAME}_v2_rehearsal"
+  echo "  rehearsal: copying the backup into $REHEARSAL_DB …"
+  sudo mysql -e "DROP DATABASE IF EXISTS \`$REHEARSAL_DB\`; CREATE DATABASE \`$REHEARSAL_DB\`;"
+  for HOST in $(sudo mysql -N -e "SELECT host FROM mysql.user WHERE user='$DB_USER'"); do
+    sudo mysql -e "GRANT ALL PRIVILEGES ON \`$REHEARSAL_DB\`.* TO '$DB_USER'@'$HOST'; FLUSH PRIVILEGES;"
+  done
+  sudo mysql "$REHEARSAL_DB" < "$BACKUP_DIR/$DB_NAME.sql"
+  count_rows() {
+    sudo mysql -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='$1' AND table_type='BASE TABLE' AND table_name NOT IN ('migrations','notifications','tracking_statuses','cache','cache_locks','sessions','jobs','failed_jobs','personal_access_tokens')" \
+      | sort | while read -r t; do echo "$t $(sudo mysql -N -e "SELECT COUNT(*) FROM \`$1\`.\`$t\`")"; done
+  }
+  count_rows "$REHEARSAL_DB" > "$BACKUP_DIR/rows-before.txt"
+  DB_DATABASE="$REHEARSAL_DB" php artisan migrate --force || { sudo mysql -e "DROP DATABASE \`$REHEARSAL_DB\`"; fail "Rehearsal migration FAILED on the copy. The live database was NOT changed. Send this output to support."; }
+  count_rows "$REHEARSAL_DB" > "$BACKUP_DIR/rows-after.txt"
+  sudo mysql -e "DROP DATABASE \`$REHEARSAL_DB\`"
+  # Every table that existed before must still have at least as many rows (new rows are fine,
+  # e.g. the Sakania Zambia checkpoint).
+  LOST="$(awk 'NR==FNR { before[$1]=$2; next } { after[$1]=$2 }
+    END { for (t in before) if (!(t in after) || after[t] < before[t]) print t": "before[t]" → "(t in after ? after[t] : "missing") }' \
+    "$BACKUP_DIR/rows-before.txt" "$BACKUP_DIR/rows-after.txt")"
+  [ -z "$LOST" ] || { echo "$LOST"; fail "Rows would be lost (see above). The live database was NOT changed."; }
+  echo "  rehearsal OK: no table lost a row ($(wc -l < "$BACKUP_DIR/rows-before.txt") tables checked)"
+
+  read -r -p "  Run the $PENDING migration(s) on the LIVE database now? Backup is in $BACKUP_DIR [y/N] " answer
+  [[ "$answer" =~ ^[Yy]$ ]] || fail "Stopped before migrating. Code is updated; run this script again when ready."
+  php artisan down --retry=60 || true
+  php artisan migrate --force || { php artisan up; fail "Live migration failed. Restore: see DEPLOY.md → Rollback (backup $BACKUP_DIR)."; }
+  count_rows "$DB_NAME" > "$BACKUP_DIR/rows-live-after.txt"
+  diff "$BACKUP_DIR/rows-after.txt" "$BACKUP_DIR/rows-live-after.txt" >/dev/null || echo "  note: live row counts differ from the rehearsal (new data arrived while deploying)"
+  php artisan up
 else
   echo "  nothing to migrate"
 fi

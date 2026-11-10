@@ -86,7 +86,9 @@ The script:
 1. Backs up the database, `.env` and uploads to `~/makuruma-backups/<time>/`.
 2. Updates the code to `origin/main`.
 3. Runs `composer install`.
-4. Lists the pending migrations and **asks before running them**.
+4. **Rehearses the migrations on a copy of the live database** and checks that no table lost a row.
+   If the copy fails, it stops and the live database is not touched.
+   Only then does it ask before migrating the live database, with the site in maintenance mode for those seconds.
 5. Seeds the border checkpoints (Sakania), then rebuilds the caches.
 6. Fixes `storage/` permissions and reloads `php8.3-fpm`.
 7. Adds the scheduler cron line (hourly auto-complete and POD checks).
@@ -95,6 +97,7 @@ V2 adds 5 migrations (per-truck booking details, tracking statuses, tracking per
 
 - **Old trips:** trips offloaded more than 5 days before the deploy are closed quietly. The 5-day alerts only apply from deployment day on.
 - **Checkpoint dates:** existing checkpoint dates move to each truck's latest booking leg.
+- **Nothing is deleted:** the migrations only add tables and columns, and fill them in. All existing rows are kept.
 
 ## 3. Deploy the web app
 
