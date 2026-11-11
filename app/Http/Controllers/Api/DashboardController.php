@@ -73,11 +73,31 @@ class DashboardController extends Controller
             ->whereYear('created_at', now()->year)
             ->count();
 
+        // Bookings created per month for the last 6 months, split by direction (Go / Return).
+        $from = now()->subMonths(5)->startOfMonth();
+        $monthly = \App\Models\Booking::select(
+            DB::raw("DATE_FORMAT(created_at, '%Y-%m') as month"),
+            'direction',
+            DB::raw('count(*) as total')
+        )->where('created_at', '>=', $from)->groupBy('month', 'direction')->get();
+
+        $trend = collect(range(5, 0))->map(function (int $ago) use ($monthly) {
+            $month = now()->subMonths($ago)->format('Y-m');
+            $rows = $monthly->where('month', $month);
+
+            return [
+                'month' => $month,
+                'go' => (int) ($rows->firstWhere('direction', 'go')->total ?? 0),
+                'return' => (int) ($rows->firstWhere('direction', 'return')->total ?? 0),
+            ];
+        })->all();
+
         return [
             'total' => $totalTrips,
             'awaiting_return' => $awaitingReturn,
             'completed' => $completedTrips,
             'this_month' => $thisMonth,
+            'monthly_trend' => $trend,
         ];
     }
 
