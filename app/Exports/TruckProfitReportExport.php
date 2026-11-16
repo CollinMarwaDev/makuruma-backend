@@ -15,9 +15,11 @@ class TruckProfitReportExport implements WithMultipleSheets
     public function sheets(): array
     {
         $trips = $this->truck->trips()
-            ->whereHas('goBookingTruck.booking', function ($q) {
-                $q->whereYear('created_at', $this->year);
-            })
+            // By the Go booking's year; a trip with only a Return half (older data) by the Return's year, so it is never hidden.
+            ->where(fn ($q) => $q
+                ->whereHas('goBookingTruck.booking', fn ($b) => $b->whereYear('created_at', $this->year))
+                ->orWhere(fn ($r) => $r->whereNull('go_booking_truck_id')
+                    ->whereHas('returnBookingTruck.booking', fn ($b) => $b->whereYear('created_at', $this->year))))
             ->with(['goBookingTruck.booking.client', 'returnBookingTruck.booking.client'])
             ->orderBy('id')
             ->get();

@@ -39,8 +39,9 @@ class TrackingTimeline
     /**
      * @param array $dates     leg date fields being saved (key => value|null)
      * @param array|null $milestone checkpoint being saved: ['checkpoint_id', 'arrival_at', 'dispatch_at']
+     * @param array $milestones several checkpoints being saved (Excel import): checkpoint_id => ['arrival_at', 'dispatch_at']
      */
-    public static function assertInOrder(BookingTruck $leg, array $dates = [], ?array $milestone = null): void
+    public static function assertInOrder(BookingTruck $leg, array $dates = [], ?array $milestone = null, array $milestones = []): void
     {
         $leg->loadMissing('milestones', 'booking');
         $points = [];
@@ -53,9 +54,11 @@ class TrackingTimeline
         foreach (self::checkpointsFor($leg) as $checkpoint) {
             $saved = $leg->milestones->firstWhere('checkpoint_id', $checkpoint->id);
             $isEdited = $milestone && (int) $milestone['checkpoint_id'] === $checkpoint->id;
+            $imported = $milestones[$checkpoint->id] ?? [];
             foreach (['arrival_at' => 'arrival', 'dispatch_at' => 'dispatch'] as $field => $word) {
-                $value = $isEdited ? ($milestone[$field] ?? null) : $saved?->{$field};
-                $points[] = ["{$checkpoint->name} {$word}", $value, false, $field];
+                $value = $isEdited ? ($milestone[$field] ?? null) : (array_key_exists($field, $imported) ? $imported[$field] : $saved?->{$field});
+                // Imported dates have no time of day, so they compare by day.
+                $points[] = ["{$checkpoint->name} {$word}", $value, array_key_exists($field, $imported), $field];
             }
         }
 

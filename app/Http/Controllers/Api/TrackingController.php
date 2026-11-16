@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exports\TrackingExport;
 use App\Http\Controllers\Controller;
 use App\Models\BookingTruck;
 use App\Models\TrackingStatus;
@@ -10,11 +9,12 @@ use App\Models\Truck;
 use App\Models\TruckMilestone;
 use App\Services\TrackingLegService;
 use App\Services\TrackingTimeline;
+use App\Services\TrackingWorkbook;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 /**
  * Tracking per booking leg (contract 2.2 D-1). A truck can have an open Go leg and an open Return
@@ -117,16 +117,30 @@ class TrackingController extends Controller
         return $pdf->download("tracking-{$truck->reg_no}-{$bookingTruck->booking->booking_number}.pdf");
     }
 
-    public function downloadExcel()
+    /** The client's GOING / RETURN tracking spreadsheet with every open leg (contract 2.2 A). */
+    public function downloadExcel(TrackingWorkbook $workbook)
     {
-        $checkpoints = \App\Models\Checkpoint::orderBy('sequence_order')->orderBy('id')->get();
-        $legs = $this->legQuery('active')->with($this->eagerLoad())->get();
-        [$go, $return] = $legs->partition(fn (BookingTruck $leg) => $leg->booking->direction === 'go');
+        $book = $workbook->export($this->legQuery('active')->orderBy('id')->get());
 
-        return Excel::download(
-            new TrackingExport($go->map(fn ($l) => $this->asTruckView($l)), $return->map(fn ($l) => $this->asTruckView($l)), $checkpoints),
-            'tracking-report-' . now()->format('Y-m-d') . '.xlsx'
+        return response()->streamDownload(
+            fn () => IOFactory::createWriter($book, 'Xlsx')->save('php://output'),
+            'MAKURUMA TRACKING ' . now()->format('d.m.Y') . '.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
         );
+    }
+
+    /**
+     * Bulk update from the edited spreadsheet (contract 2.2 B). Without `apply` it only previews:
+     * what each row would change and why rows are rejected. With `apply=1` it saves the valid rows.
+     */
+    public function import(Request $request, TrackingWorkbook $workbook)
+    {
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:5120',
+            'apply' => 'nullable|boolean',
+        ]);
+
+        return $workbook->import($validated['file']->getRealPath(), (bool) ($validated['apply'] ?? false));
     }
 
     private function legQuery(string $scope): Builder

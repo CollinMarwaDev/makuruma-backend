@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Tracking is per booking leg (Go / Return), contract 2.2 D-1.
     Route::get('tracking/export-excel', [TrackingController::class, 'downloadExcel']);
+    Route::post('tracking/import', [TrackingController::class, 'import']);
     Route::get('tracking', [TrackingController::class, 'index']);
     Route::get('tracking/{bookingTruck}', [TrackingController::class, 'show']);
     Route::put('tracking/{bookingTruck}/status', [TrackingController::class, 'updateStatus']);

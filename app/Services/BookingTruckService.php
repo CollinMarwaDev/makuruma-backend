@@ -84,6 +84,7 @@ class BookingTruckService
         }
 
         $this->assertBookable($newTruck, $booking->direction, 'truck_id');
+        $this->assertNoReturnBooked($bookingTruck, 'truck_id', ' Remove it from that return booking first.');
 
         $oldTruck = $bookingTruck->truck;
         $details = [
@@ -124,8 +125,25 @@ class BookingTruckService
             ]);
         }
 
+        $this->assertNoReturnBooked($bookingTruck, 'booking', ' Remove it from that return booking first, or use "Correct truck" to change the truck instead.');
         $this->endLeg($booking, $bookingTruck, $bookingTruck->truck);
         $bookingTruck->update(['removed_at' => now()]);
+    }
+
+    /**
+     * A Go leg whose trip already has a Return booked cannot be removed, swapped or deleted: the
+     * Return would be left without its Go half and drop out of the profit report (UAT, Nov 2026).
+     */
+    public function assertNoReturnBooked(BookingTruck $bookingTruck, string $field, string $hint): void
+    {
+        $bookingTruck->loadMissing('booking', 'truck', 'trip.returnBookingTruck.booking');
+        $return = $bookingTruck->booking->direction === 'go' ? $bookingTruck->trip?->returnBookingTruck : null;
+
+        if ($return) {
+            throw ValidationException::withMessages([
+                $field => sprintf('%s already has Return booking %s.%s', $bookingTruck->truck?->reg_no ?? 'This truck', $return->booking?->booking_number, $hint),
+            ]);
+        }
     }
 
     /** Booking-level summary: shared value when all trucks agree, earliest ETA. */

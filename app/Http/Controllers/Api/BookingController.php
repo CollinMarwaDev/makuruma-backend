@@ -222,6 +222,12 @@ class BookingController extends Controller
         DB::transaction(function () use ($booking) {
             $bookingTrucks = $booking->bookingTrucks()->whereNull('removed_at')->with('trip', 'truck')->get();
 
+            if ($booking->direction === 'go') {
+                foreach ($bookingTrucks as $bookingTruck) {
+                    $this->trucks->assertNoReturnBooked($bookingTruck, 'booking', ' Remove it from that return booking before deleting this booking.');
+                }
+            }
+
             foreach ($bookingTrucks as $bookingTruck) {
                 $truck = $bookingTruck->truck;
                 $trip = $bookingTruck->trip;
