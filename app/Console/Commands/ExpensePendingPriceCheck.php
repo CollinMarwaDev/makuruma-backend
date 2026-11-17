@@ -18,10 +18,11 @@ class ExpensePendingPriceCheck extends Command
     public function handle(): int
     {
         $orders = ExpenseOrder::where('expense_type', 'fuel')
+            ->whereNotNull('serial') // orders saved before the new forms have lump-sum lines, never a pending price
             ->whereIn('status', ['pending', 'approved'])
             ->whereNull('price_alerted_at')
             ->where('created_at', '<=', now()->subDays(ExpenseOrder::PRICE_GRACE_DAYS))
-            ->whereHas('lines', fn ($q) => $q->whereNull('unit_rate'))
+            ->whereHas('lines', fn ($q) => $q->where('line_category', 'fuel')->whereNull('unit_rate'))
             ->get();
 
         $accountants = User::whereHas('role', fn ($q) => $q->where('slug', 'accountant'))->get();

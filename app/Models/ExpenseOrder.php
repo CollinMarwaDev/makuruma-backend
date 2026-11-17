@@ -150,16 +150,19 @@ class ExpenseOrder extends Model
         return $categories > 1;
     }
 
-    /** A fuel order with a line still waiting for its price (req. 10). */
+    /**
+     * A fuel order with a fuel line still waiting for its price (req. 10). Only orders made with the
+     * new forms (they have a series number): older orders kept lump-sum lines without a unit price.
+     */
     public function getPendingPriceAttribute(): bool
     {
-        if ($this->expense_type !== 'fuel') {
+        if ($this->expense_type !== 'fuel' || $this->serial === null) {
             return false;
         }
 
         return $this->relationLoaded('lines')
-            ? $this->lines->contains(fn (ExpenseLine $l) => $l->unit_rate === null)
-            : $this->lines()->whereNull('unit_rate')->exists();
+            ? $this->lines->contains(fn (ExpenseLine $l) => $l->line_category === 'fuel' && $l->unit_rate === null)
+            : $this->lines()->where('line_category', 'fuel')->whereNull('unit_rate')->exists();
     }
 
     /** Price still missing after PRICE_GRACE_DAYS; accounts cannot be closed. */

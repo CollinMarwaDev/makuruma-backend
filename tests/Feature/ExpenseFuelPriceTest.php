@@ -121,6 +121,22 @@ class ExpenseFuelPriceTest extends TestCase
         $this->getJson("/api/expense-orders/{$order['id']}")->assertJsonPath('price_overdue', true);
     }
 
+    /** Orders saved before this release (no series number) kept lump-sum lines without a unit price. */
+    public function test_orders_saved_before_the_new_forms_are_never_price_pending(): void
+    {
+        Notification::fake();
+        User::factory()->create(['role_id' => Role::where('slug', 'accountant')->value('id')]);
+        $order = $this->postJson('/api/expense-orders', $this->order([$this->line(0)]))->json();
+        ExpenseOrder::whereKey($order['id'])->update(['serial' => null, 'created_at' => now()->subDays(30)]);
+
+        $this->getJson("/api/expense-orders/{$order['id']}")->assertJsonPath('pending_price', false);
+        $this->artisan('expenses:pending-price-check')->assertSuccessful();
+        Notification::assertNothingSent();
+
+        $this->postJson("/api/expense-orders/{$order['id']}/approve")->assertOk();
+        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid")->assertOk();
+    }
+
     public function test_fuel_pdf_downloads_with_and_without_price(): void
     {
         $order = $this->postJson('/api/expense-orders', $this->order([$this->line(0, ['unit_rate' => 3000])]))->json();
