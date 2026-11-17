@@ -5,7 +5,7 @@ namespace App\Notifications;
 use App\Models\BookingTruck;
 use Illuminate\Notifications\Notification;
 
-/** In-app tracking alert (contract 2.2 D-6 auto-completion, D-7 overdue POD). */
+/** In-app tracking alert (contract 2.2 D-6 ready for invoicing 5 days after offloading, D-7 overdue POD). */
 class TrackingAlert extends Notification
 {
     public function __construct(private string $kind, private BookingTruck $leg)
@@ -28,10 +28,10 @@ class TrackingAlert extends Notification
             'booking_number' => $booking,
             'booking_truck_id' => $leg->id,
             'kind' => $this->kind,
-            'message' => $this->kind === 'auto_completed'
-                ? "{$truck} on {$booking} was marked Completed automatically (offloaded {$offloaded}). Ready for invoicing/accounts."
+            'message' => $this->kind === 'ready_for_invoicing'
+                ? "{$truck} on {$booking} was offloaded {$offloaded}. Ready for invoicing/accounts."
                 : "{$truck} on {$booking} was offloaded {$offloaded} and still has no POD uploaded.",
-            'title' => $this->kind === 'auto_completed' ? 'Trip auto-completed' : 'POD overdue',
+            'title' => $this->kind === 'ready_for_invoicing' ? 'Ready for invoicing' : 'POD overdue',
             'truck' => $truck,
         ];
     }

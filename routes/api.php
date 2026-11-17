@@ -35,6 +35,11 @@ use App\Http\Controllers\Api\TrackingStatusController;
 use App\Http\Controllers\Api\NotificationController;
 
 use App\Http\Controllers\Api\ExpenseOrderController;
+use App\Http\Controllers\Api\ExpenseSubcategoryController;
+use App\Http\Controllers\Api\PaymentAccountController;
+use App\Http\Controllers\Api\RouteTemplateController;
+use App\Http\Controllers\Api\UsdRateController;
+use App\Http\Controllers\Api\VendorTypeController;
 use App\Http\Controllers\Api\InvoiceController;
 
 use App\Http\Controllers\Api\DashboardController;
@@ -92,7 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('checkpoints', CheckpointController::class)->only(['index', 'store']);
 
     // Tracking is per booking leg (Go / Return), contract 2.2 D-1.
-    Route::get('tracking/export-excel', [TrackingController::class, 'downloadExcel']);
+    Route::match(['get', 'post'], 'tracking/export-excel', [TrackingController::class, 'downloadExcel']);
     Route::post('tracking/import', [TrackingController::class, 'import']);
     Route::get('tracking', [TrackingController::class, 'index']);
     Route::get('tracking/{bookingTruck}', [TrackingController::class, 'show']);
@@ -118,6 +123,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('expense-orders/{expenseOrder}/approve', [ExpenseOrderController::class, 'approve']);
     Route::post('expense-orders/{expenseOrder}/reject', [ExpenseOrderController::class, 'reject']);
     Route::post('expense-orders/{expenseOrder}/mark-paid', [ExpenseOrderController::class, 'markPaid']);
+    Route::patch('expense-orders/{expenseOrder}/prices', [ExpenseOrderController::class, 'updatePrices']);
+
+    // Expense UAT req. 18, 26–28: lists users manage
+    Route::apiResource('payment-accounts', PaymentAccountController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['payment-accounts' => 'id']);
+    Route::apiResource('vendor-types', VendorTypeController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['vendor-types' => 'id']);
+    Route::apiResource('expense-subcategories', ExpenseSubcategoryController::class)->only(['index', 'store', 'update', 'destroy'])->parameters(['expense-subcategories' => 'id']);
+    Route::apiResource('usd-rates', UsdRateController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('route-templates', RouteTemplateController::class)->only(['index', 'store', 'update', 'destroy']);
 
     Route::get('invoices/eligible-trucks', [InvoiceController::class, 'eligibleTrucks']);
     Route::apiResource('invoices', InvoiceController::class)->only(['index', 'store', 'show', 'update', 'destroy']);

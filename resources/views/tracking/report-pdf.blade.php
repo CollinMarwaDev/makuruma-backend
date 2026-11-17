@@ -67,7 +67,7 @@
     <div class="info-grid">
         <div class="info-cell">
             <div class="info-label">Current Status</div>
-            <div class="info-value"><span class="status-badge">{{ strtoupper(str_replace('_', ' ', $truck->current_status)) }}</span></div>
+            <div class="info-value"><span class="status-badge">{{ mb_strtoupper(\App\Models\TrackingStatus::where('key', $truck->current_status)->value('label') ?? str_replace('_', ' ', $truck->current_status)) }}</span></div>
         </div>
         <div class="info-cell">
             <div class="info-label">Current Location</div>

@@ -2,8 +2,8 @@
 
 namespace App\Exports;
 
-use App\Models\ExpenseLine;
 use App\Models\Trip;
+use App\Services\ExpenseReportLines;
 use App\Services\TripProfitCalculator;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
@@ -108,10 +108,9 @@ class TripSheetExport implements WithEvents, WithTitle
         $sheet->getStyle("B{$row}:H{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E3A8A');
         $row++;
 
-        $bookingTruckIds = collect([
-            $this->trip->goBookingTruck?->id,
-            $this->trip->returnBookingTruck?->id,
-        ])->filter()->values();
+        $lines = collect([$this->trip->goBookingTruck, $this->trip->returnBookingTruck])
+            ->filter()
+            ->flatMap(fn ($leg) => ExpenseReportLines::forLeg($leg));
 
         $categories = [
             'fuel' => 'MAFUTA',
@@ -121,32 +120,24 @@ class TripSheetExport implements WithEvents, WithTitle
         ];
 
         foreach ($categories as $key => $label) {
-            $lines = ExpenseLine::whereIn('booking_truck_id', $bookingTruckIds)
-                ->where('line_category', $key)
-                ->orderBy('created_at')
-                ->get();
+            // Other expenses are grouped by subcategory (Expense UAT req. 26).
+            $groups = $lines->where('category', $key)->groupBy(fn ($l) => $key === 'mengine' ? ($l['subcategory'] ?? '') : '');
 
-            if ($lines->isEmpty())
-                continue;
-
-            $sheet->setCellValue("B{$row}", $label);
-            $sheet->getStyle("B{$row}")->getFont()->setBold(true);
-            $row++;
-
-            foreach ($lines as $line) {
-                $isFuel = $key === 'fuel';
-                $value = $isFuel ? $line->quantity : $line->original_amount;
-                $unit = $isFuel ? 'Ltr' : $line->currency;
-                $rate = $isFuel ? $line->unit_rate : $line->exchange_rate;
-
-                $sheet->setCellValue("B{$row}", $line->created_at->format('Y-m-d'));
-                $sheet->setCellValue("C{$row}", $line->expense_order_id);
-                $sheet->setCellValue("D{$row}", $line->description);
-                $sheet->setCellValue("E{$row}", $value);
-                $sheet->setCellValue("F{$row}", $unit);
-                $sheet->setCellValue("G{$row}", $rate);
-                $sheet->setCellValue("H{$row}", $line->amount);
+            foreach ($groups as $subcategory => $group) {
+                $sheet->setCellValue("B{$row}", $subcategory !== '' ? "{$label} — " . mb_strtoupper($subcategory) : $label);
+                $sheet->getStyle("B{$row}")->getFont()->setBold(true);
                 $row++;
+
+                foreach ($group as $l) {
+                    $sheet->setCellValue("B{$row}", $l['date']);
+                    $sheet->setCellValue("C{$row}", $l['line']->expenseOrder?->order_number ?? $l['line']->expense_order_id);
+                    $sheet->setCellValue("D{$row}", $l['description'] . ($l['share_of'] ? " (1/{$l['share_of']})" : ''));
+                    $sheet->setCellValue("E{$row}", $l['value']);
+                    $sheet->setCellValue("F{$row}", $l['unit']);
+                    $sheet->setCellValue("G{$row}", $l['rate']);
+                    $sheet->setCellValue("H{$row}", $l['amount']);
+                    $row++;
+                }
             }
         }
 

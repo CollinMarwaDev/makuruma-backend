@@ -17,7 +17,8 @@ class VendorController extends Controller
     {
         $validated = $request->validate([
             'company_name' => 'required|string',
-            'vendor_type' => 'required|in:fuel,e-seal',
+            'vendor_type' => 'required|exists:vendor_types,slug',
+            'payment_mode' => 'sometimes|in:on_spot,bill',
             'phone' => 'nullable|string',
             'location' => 'nullable|string',
         ]);
@@ -36,7 +37,8 @@ class VendorController extends Controller
     {
         $validated = $request->validate([
             'company_name' => 'sometimes|required|string',
-            'vendor_type' => 'sometimes|required|in:fuel,e-seal',
+            'vendor_type' => 'sometimes|required|exists:vendor_types,slug',
+            'payment_mode' => 'sometimes|in:on_spot,bill',
             'phone' => 'nullable|string',
             'location' => 'nullable|string',
         ]);

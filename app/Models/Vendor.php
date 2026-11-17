@@ -10,7 +10,7 @@ class Vendor extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['company_name', 'vendor_type', 'phone', 'location'];
+    protected $fillable = ['company_name', 'vendor_type', 'payment_mode', 'phone', 'location'];
 
     public function expenseLines(): HasMany
     {

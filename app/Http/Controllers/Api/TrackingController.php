@@ -40,10 +40,10 @@ class TrackingController extends Controller
         ];
     }
 
-    /** Legs for the tracking list. scope: active (default, not completed), completed, all. */
+    /** Legs for the tracking list. scope: active (default, not offloaded), offloaded, all. `completed` is an old name for offloaded. */
     public function index(Request $request)
     {
-        $validated = $request->validate(['scope' => 'nullable|in:active,completed,all']);
+        $validated = $request->validate(['scope' => 'nullable|in:active,offloaded,completed,all']);
 
         return $this->legQuery($validated['scope'] ?? 'active')->with($this->eagerLoad())->latest('id')->get();
     }
@@ -117,10 +117,17 @@ class TrackingController extends Controller
         return $pdf->download("tracking-{$truck->reg_no}-{$bookingTruck->booking->booking_number}.pdf");
     }
 
-    /** The client's GOING / RETURN tracking spreadsheet with every open leg (contract 2.2 A). */
-    public function downloadExcel(TrackingWorkbook $workbook)
+    /**
+     * The client's GOING / RETURN tracking spreadsheet (contract 2.2 A; tracking req. 10): the one format for
+     * every tracking download. POST `ids` = the legs on screen (current tab and filters); GET = every open leg.
+     */
+    public function downloadExcel(Request $request, TrackingWorkbook $workbook)
     {
-        $book = $workbook->export($this->legQuery('active')->orderBy('id')->get());
+        $validated = $request->validate(['ids' => 'sometimes|array|max:2000', 'ids.*' => 'integer']);
+        $legs = isset($validated['ids'])
+            ? $this->legQuery('all')->whereIn('id', $validated['ids'])->orderBy('id')->get()
+            : $this->legQuery('active')->orderBy('id')->get();
+        $book = $workbook->export($legs);
 
         return response()->streamDownload(
             fn () => IOFactory::createWriter($book, 'Xlsx')->save('php://output'),
@@ -147,8 +154,8 @@ class TrackingController extends Controller
     {
         return BookingTruck::query()
             ->whereNull('removed_at')
-            ->when($scope === 'active', fn ($q) => $q->where('current_status', '!=', TrackingStatus::COMPLETED))
-            ->when($scope === 'completed', fn ($q) => $q->where('current_status', TrackingStatus::COMPLETED));
+            ->when($scope === 'active', fn ($q) => $q->where('current_status', '!=', TrackingStatus::OFFLOADED))
+            ->when(in_array($scope, ['offloaded', 'completed'], true), fn ($q) => $q->where('current_status', TrackingStatus::OFFLOADED));
     }
 
     /** Leg with its route checkpoints in travel order (for the detail form). */

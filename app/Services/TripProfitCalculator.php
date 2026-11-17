@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\BookingTruck;
-use App\Models\ExpenseLine;
 use App\Models\InvoiceLine;
 use App\Models\Trip;
 
@@ -43,7 +42,7 @@ class TripProfitCalculator
         if (!$bookingTruck)
             return 0;
 
-        return (float) ExpenseLine::where('booking_truck_id', $bookingTruck->id)->sum('amount');
+        return round((float) ExpenseReportLines::forLeg($bookingTruck)->sum('amount'), 2);
     }
 
     public static function tripProfit(Trip $trip): float

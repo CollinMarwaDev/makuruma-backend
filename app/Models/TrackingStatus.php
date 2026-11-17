@@ -14,5 +14,6 @@ class TrackingStatus extends Model
         'is_system' => 'boolean',
     ];
 
-    public const COMPLETED = 'completed';
+    /** Final status of a leg (client request 17 Nov 2026: replaces Completed). */
+    public const OFFLOADED = 'offloaded';
 }

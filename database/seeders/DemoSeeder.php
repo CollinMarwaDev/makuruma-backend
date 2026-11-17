@@ -11,6 +11,7 @@ use App\Models\Driver;
 use App\Models\ExpenseOrder;
 use App\Models\Invoice;
 use App\Models\OfficeAsset;
+use App\Models\PaymentAccount;
 use App\Models\Role;
 use App\Models\Staff;
 use App\Models\Trailer;
@@ -99,8 +100,8 @@ class DemoSeeder extends Seeder
             ['company_name' => 'Puma Energy Tunduma', 'vendor_type' => 'fuel', 'phone' => '0765200001', 'location' => 'Tunduma'],
             ['company_name' => 'Oryx Kasumbalesa', 'vendor_type' => 'fuel', 'phone' => '0765200002', 'location' => 'Kasumbalesa'],
             ['company_name' => 'Lake Oil Dar', 'vendor_type' => 'fuel', 'phone' => '0765200003', 'location' => 'Dar es Salaam'],
-            ['company_name' => 'SecureSeal Ltd', 'vendor_type' => 'e-seal', 'phone' => '0765200004', 'location' => 'Dar es Salaam'],
-            ['company_name' => 'TrackSeal Africa', 'vendor_type' => 'e-seal', 'phone' => '0765200005', 'location' => 'Lubumbashi'],
+            ['company_name' => 'SecureSeal Ltd', 'vendor_type' => 'ecil', 'phone' => '0765200004', 'location' => 'Dar es Salaam'],
+            ['company_name' => 'TrackSeal Africa', 'vendor_type' => 'ecil', 'phone' => '0765200005', 'location' => 'Lubumbashi'],
         ])->map(fn ($v) => Vendor::firstOrCreate(['company_name' => $v['company_name']], $v));
 
         return [$clients, $vendors];
@@ -196,7 +197,7 @@ class DemoSeeder extends Seeder
         ], '-25 days');
         $this->dates($a1, -20, -19, -18, -6, -3);
         $this->checkpoints($a1, -16, 4);
-        $legsService->updateStatus($a1->fresh(), 'offloading', 'Lubumbashi', 'kasumbalesa');
+        $legsService->updateStatus($a1->fresh(), 'waiting_to_offload', 'Lubumbashi', 'kasumbalesa');
         $this->dates($a2, -12, -11, -10);
         $this->checkpoints($a2, -8, 2);
         $legsService->updateStatus($a2->fresh(), 'in_transit', 'Nakonde', 'sakania');
@@ -207,7 +208,7 @@ class DemoSeeder extends Seeder
         $this->checkpoints($b1, -41, 5);
         Storage::disk('public')->put('documents/demo-pod.pdf', $this->tinyPdf());
         $this->document($b1, 'POD', 'POD-DEMO-1', null, 'documents/demo-pod.pdf');
-        $legsService->updateStatus($b1->fresh(), 'completed', 'Kolwezi', 'kasumbalesa');
+        $legsService->updateStatus($b1->fresh(), 'offloaded', 'Kolwezi', 'kasumbalesa');
 
         // 3. Go booking, truck on the way to loading.
         [$c] = $book($c3, 'go', [[$t4, ['tons' => 30, 'cargo' => 'Clinker', 'rate' => 92, 'loading_point' => 'Mbeya', 'offloading_point' => 'Lubumbashi', 'eta' => now()->addDays(9)->toDateString()]]], '-2 days');
@@ -216,12 +217,12 @@ class DemoSeeder extends Seeder
         // 4. Return booking for the truck that delivered booking 2.
         [$d] = $book($c4, 'return', [[$t3->fresh(), ['tons' => 30, 'cargo' => 'Copper concentrate', 'rate' => 70, 'loading_point' => 'Kolwezi', 'offloading_point' => 'Dar es Salaam', 'eta' => now()->addDays(6)->toDateString()]]], '-20 days');
         $this->dates($d, -18, -17, -16);
-        $legsService->updateStatus($d->fresh(), 'at_border', 'Kasumbalesa', 'kasumbalesa');
+        $legsService->updateStatus($d->fresh(), 'clearing', 'Kasumbalesa', 'kasumbalesa');
 
         // 5. Go booking, truck loading; offloaded with no POD 7 days ago would trigger alerts, so it stays at loading.
         [$e] = $book($c5, 'go', [[$t5, ['tons' => 34, 'cargo' => 'Maize', 'rate' => 60, 'loading_point' => 'Tanga', 'offloading_point' => 'Lusaka', 'eta' => now()->addDays(8)->toDateString()]]], '-1 day');
         $this->dates($e, -1);
-        $legsService->updateStatus($e->fresh(), 'loading', 'Tanga port', null);
+        $legsService->updateStatus($e->fresh(), 'waiting_to_load', 'Tanga port', null);
 
         return compact('a1', 'a2', 'b1', 'd', 'e');
     }
@@ -263,46 +264,56 @@ class DemoSeeder extends Seeder
     {
         $m = fn (int $monthsAgo, int $day) => now()->subMonthsNoOverflow($monthsAgo)->day($day)->toDateString();
         $orders = [
-            ['trip', $legs['b1'], null, 'paid', $m(2, 8), [
+            ['trip', 'fuel', $legs['b1'], null, 'paid', $m(2, 8), [
                 ['fuel', $vendors[2], 'Diesel Dar', 'TZS', null, 400, 3150, null],
+            ]],
+            ['trip', 'vibali_tunduma', $legs['b1'], null, 'paid', $m(2, 8), [
                 ['vibali_tunduma', null, 'Border permits Tunduma', 'USD', 2620, null, null, 120],
+            ]],
+            ['trip', 'vibali_congo', $legs['b1'], null, 'paid', $m(2, 8), [
                 ['vibali_congo', null, 'DRC entry fees', 'USD', 2620, null, null, 350],
             ]],
-            ['trip', $legs['a1'], null, 'approved', $m(0, 1), [
+            ['trip', 'fuel', $legs['a1'], null, 'approved', $m(0, 1), [
                 ['fuel', $vendors[0], 'Diesel Tunduma', 'TZS', null, 350, 3200, null],
                 ['fuel', $vendors[1], 'Diesel Kasumbalesa', 'USD', 2690, 150, 1.35, null],
+            ]],
+            ['trip', 'mengine', $legs['a1'], null, 'approved', $m(0, 1), [
                 ['mengine', null, 'Driver allowance', 'TZS', null, null, null, 450000],
             ]],
-            ['truck', null, $trucks[3], 'paid', $m(1, 15), [
+            ['truck', 'mengine', null, $trucks[3], 'paid', $m(1, 15), [
                 ['mengine', null, 'Brake pads and service', 'TZS', null, null, null, 1850000],
             ]],
-            ['office', null, null, 'pending', $m(0, 4), [
+            ['office', 'mengine', null, null, 'pending', $m(0, 4), [
                 ['mengine', null, 'Office rent (November)', 'TZS', null, null, null, 1200000],
                 ['mengine', $vendors[3], 'E-seal subscription', 'USD', 2690, null, null, 90],
             ]],
-            ['trip', $legs['e'], null, 'rejected', $m(3, 10), [
+            ['trip', 'mengine', $legs['e'], null, 'rejected', $m(3, 10), [
                 ['mengine', null, 'Duplicate request', 'TZS', null, null, null, 300000],
             ]],
         ];
+        $crdb = PaymentAccount::where('name', 'CRDB')->value('id');
 
-        foreach ($orders as $i => [$category, $leg, $truck, $status, $paymentDate, $lines]) {
-            $leg?->loadMissing('booking');
+        foreach ($orders as $i => [$category, $type, $leg, $truck, $status, $paymentDate, $lines]) {
             $order = ExpenseOrder::create([
+                ...ExpenseNumberGenerator::next($type),
                 'approved_at' => in_array($status, ['approved', 'paid']) ? $paymentDate : null,
                 'approved_by' => in_array($status, ['approved', 'paid']) ? $this->admin->id : null,
                 'booking_id' => $leg?->booking_id,
                 'category' => $category,
                 'created_by' => $this->admin->id,
-                'initiated_by' => ['Neema Said', 'Joseph Mallya', 'Baraka Mushi', 'Asha Omari', 'Rehema Juma'][$i],
-                'order_number' => $category === 'trip' ? $leg->booking->booking_number : ExpenseNumberGenerator::generate(),
+                'expense_type' => $type,
+                'initiated_by' => $this->admin->name,
                 'paid_at' => $status === 'paid' ? $paymentDate : null,
                 'paid_by' => $status === 'paid' ? $this->admin->id : null,
-                'payment_account' => 'CRDB 0150001',
+                'payment_account_id' => $crdb,
                 'payment_date' => $paymentDate,
                 'reference_no' => 'DEMO-REF-' . ($i + 1),
                 'status' => $status,
                 'truck_id' => $truck?->id,
             ]);
+            if ($leg) {
+                $order->bookings()->attach($leg->booking_id);
+            }
             if ($truck) {
                 $order->trucks()->attach($truck->id);
             }

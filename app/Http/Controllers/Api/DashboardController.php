@@ -111,13 +111,15 @@ class DashboardController extends Controller
         return $counts->map(fn ($n) => (int) $n)->all() + [
             'pending' => $counts['pending'] ?? 0,
             'on_route_to_loading' => $counts['on_route_to_loading'] ?? 0,
-            'loading' => $counts['loading'] ?? 0,
+            'waiting_to_load' => $counts['waiting_to_load'] ?? 0,
+            'loaded_waiting_documents' => $counts['loaded_waiting_documents'] ?? 0,
             'in_transit' => $counts['in_transit'] ?? 0,
-            'at_border' => $counts['at_border'] ?? 0,
-            'offloading' => $counts['offloading'] ?? 0,
+            'clearing' => $counts['clearing'] ?? 0,
+            'waiting_to_cross' => $counts['waiting_to_cross'] ?? 0,
+            'waiting_to_offload' => $counts['waiting_to_offload'] ?? 0,
             'delayed' => $counts['delayed'] ?? 0,
             'breakdown' => $counts['breakdown'] ?? 0,
-            'completed' => $counts['completed'] ?? 0,
+            'offloaded' => $counts['offloaded'] ?? 0,
         ];
     }
 

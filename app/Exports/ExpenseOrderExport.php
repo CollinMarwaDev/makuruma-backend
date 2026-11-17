@@ -58,8 +58,8 @@ class ExpenseOrderExport implements WithEvents
         // --- Info block ---
         $row = 6;
         $infoPairs = [
-            ['Category', ucfirst($this->expense->category)],
-            ['Reference', $this->expense->booking->booking_number ?? $this->expense->truck->reg_no ?? '—'],
+            ['Category', ucfirst($this->expense->category) . ' · ' . (['fuel' => 'Fuel', 'vibali_tunduma' => 'Vibali Tunduma', 'vibali_congo' => 'Vibali Congo', 'mengine' => 'Other'][$this->expense->expense_type] ?? '') . ($this->expense->subcategory ? ' · ' . $this->expense->subcategory->name : '')],
+            ['Reference', $this->expense->bookings->pluck('booking_number')->join(', ') ?: ($this->expense->truck->reg_no ?? '—')],
             ['Status', strtoupper($this->expense->status)],
         ];
         $col = 'A';

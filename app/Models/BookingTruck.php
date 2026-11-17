@@ -35,6 +35,7 @@ class BookingTruck extends Model
         'removed_at',
         'completed_at',
         'auto_completed_at',
+        'invoice_ready_notified_at',
         'pod_overdue_notified_at',
     ];
 
@@ -44,6 +45,7 @@ class BookingTruck extends Model
     protected $casts = [
         'completed_at' => 'datetime',
         'auto_completed_at' => 'datetime',
+        'invoice_ready_notified_at' => 'datetime',
         'pod_overdue_notified_at' => 'datetime',
     ];
 
@@ -102,7 +104,7 @@ class BookingTruck extends Model
             return false;
         }
 
-        $isFinished = $this->current_status === 'completed';
+        $isFinished = $this->current_status === TrackingStatus::OFFLOADED;
 
         return !$isFinished && now()->startOfDay()->greaterThan($eta);
     }

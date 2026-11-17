@@ -49,12 +49,21 @@ class TrackingWorkbook
 
     private const SHEETS = ['go' => 'GOING', 'return' => 'RETURN'];
 
+    /** Status names the client no longer uses (17 Nov 2026) and the ones that replace them. */
+    private const RETIRED_STATUSES = [
+        'LOADING' => 'WAITING TO LOAD or LOADED - WAITING FOR DOCUMENTS',
+        'AT BORDER' => 'CLEARING or WAITING TO CROSS',
+        'OFFLOADING' => 'WAITING TO OFFLOAD',
+        'COMPLETED' => 'OFFLOADED',
+    ];
+
     public function __construct(private TrackingLegService $legs)
     {
     }
 
     // --- Export ------------------------------------------------------------------------------
 
+    /** Any legs, open or Offloaded, on their GOING / RETURN sheet in the order given. */
     public function export(Collection $legs): Spreadsheet
     {
         $book = IOFactory::load(resource_path(self::TEMPLATE));
@@ -212,7 +221,10 @@ class TrackingWorkbook
         $statusText = $text('G');
         if ($statusText !== '') {
             $status = $context['statuses']->first(fn (TrackingStatus $s) => in_array($this->words($statusText), [$this->words($s->label), $this->words($s->key)], true));
-            if (!$status) {
+            $retired = self::RETIRED_STATUSES[$this->words($statusText)] ?? null;
+            if (!$status && $retired) {
+                $row['errors'][] = "CURRENT STATUS: \"{$statusText}\" is no longer used. Write {$retired}.";
+            } elseif (!$status) {
                 $row['errors'][] = "CURRENT STATUS: \"{$statusText}\" is not a status in the system. An admin can add it under Tracking › Manage statuses.";
             } elseif ($status->key !== $leg->current_status) {
                 if (!$status->is_active) {
@@ -306,18 +318,32 @@ class TrackingWorkbook
         if (is_numeric($id)) {
             $leg = (clone $legs)->find((int) $id);
             if (!$leg) {
-                $error = "The hidden ID on this row does not belong to {$plate}'s {$sheetName} leg. Download a fresh copy instead of copying rows between files.";
+                $error = $this->wrongIdReason((int) $id, $plate, $sheetName);
             }
 
             return $leg;
         }
 
-        $leg = $legs->orderByRaw('current_status = ? asc', [TrackingStatus::COMPLETED])->orderByDesc('id')->first();
+        $leg = $legs->orderByRaw('current_status = ? asc', [TrackingStatus::OFFLOADED])->orderByDesc('id')->first();
         if (!$leg) {
             $error = "{$plate} has no " . ($direction === 'go' ? 'Go' : 'Return') . ' booking to update.';
         }
 
         return $leg;
+    }
+
+    /** Why a row's hidden ID does not fit its truck and sheet, so the user knows what to fix. */
+    private function wrongIdReason(int $id, string $plate, string $sheetName): string
+    {
+        $other = BookingTruck::with(['booking:id,booking_number,direction', 'truck:id,reg_no'])->find($id);
+        $fresh = 'Download a fresh copy of the tracking Excel and enter the change there.';
+
+        return match (true) {
+            !$other || !$other->booking => "The hidden ID on this row points to a trip that no longer exists (its booking was deleted). {$fresh}",
+            $other->removed_at !== null => "{$plate} was taken off booking {$other->booking->booking_number} (truck removed or changed) after this file was downloaded. {$fresh}",
+            $this->plate((string) $other->truck?->reg_no) !== $this->plate($plate) => "The hidden ID on this row belongs to {$other->truck?->reg_no} on {$other->booking->booking_number}, not {$plate}: the truck number was changed or the row was copied. {$fresh}",
+            default => "The hidden ID on this row belongs to {$plate}'s " . self::SHEETS[$other->booking->direction] . " leg ({$other->booking->booking_number}), but the row is on the {$sheetName} sheet. Move it back to the " . self::SHEETS[$other->booking->direction] . " sheet or {$fresh}",
+        };
     }
 
     /** The checkpoint behind each border column pair for this leg's route (null when not on its route). */
