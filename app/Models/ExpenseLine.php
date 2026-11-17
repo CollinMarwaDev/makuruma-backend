@@ -15,6 +15,7 @@ class ExpenseLine extends Model
         'line_category',
         'vendor_id',
         'booking_truck_id',
+        'truck_id',
         'driver_name',
         'group_key',
         'description',
@@ -70,5 +71,11 @@ class ExpenseLine extends Model
     public function bookingTruck(): BelongsTo
     {
         return $this->belongsTo(BookingTruck::class);
+    }
+
+    /** The truck of a Truck-category line (Trip lines use bookingTruck). */
+    public function truck(): BelongsTo
+    {
+        return $this->belongsTo(Truck::class);
     }
 }

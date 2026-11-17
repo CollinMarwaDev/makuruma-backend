@@ -24,11 +24,11 @@ class ExpensePriceService
     public static function diffLines(Collection $oldLines, array $newLines): array
     {
         $key = fn ($groupKey, $truckId) => ($groupKey ?? '') . '|' . ($truckId ?? '');
-        $old = $oldLines->keyBy(fn (ExpenseLine $l) => $key($l->group_key, $l->booking_truck_id));
+        $old = $oldLines->keyBy(fn (ExpenseLine $l) => $key($l->group_key, $l->booking_truck_id ?? $l->truck_id));
 
         $changes = [];
         foreach ($newLines as $line) {
-            $previous = $old->get($key($line['group_key'] ?? null, $line['booking_truck_id'] ?? null));
+            $previous = $old->get($key($line['group_key'] ?? null, $line['booking_truck_id'] ?? $line['truck_id'] ?? null));
             $new = isset($line['unit_rate']) ? (float) $line['unit_rate'] : null;
             if ($previous && self::differs($previous->unit_rate, $new)) {
                 $changes[] = ['label' => self::label($previous), 'line' => null, 'new' => $new, 'old' => self::rate($previous->unit_rate)];
@@ -64,7 +64,7 @@ class ExpensePriceService
 
     public static function label(ExpenseLine $line): string
     {
-        $truck = $line->bookingTruck?->truck?->reg_no ?? $line->expenseOrder?->truck?->reg_no;
+        $truck = $line->bookingTruck?->truck?->reg_no ?? $line->truck?->reg_no ?? $line->expenseOrder?->truck?->reg_no;
 
         return trim($line->description . ($truck ? " · {$truck}" : ''));
     }

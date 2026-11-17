@@ -2,8 +2,8 @@
 @php
     $lines = $expense->lines->sortBy('id')->values();
     $fmt = fn ($v) => number_format((float) $v, fmod((float) $v, 1) ? 2 : 0);
-    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $expense->truck?->reg_no ?? '';
-    $driverOf = fn ($l) => $l->driver_name ?? $l->bookingTruck?->driver?->full_name ?? $expense->truck?->driver?->full_name ?? '';
+    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $l->truck?->reg_no ?? $expense->truck?->reg_no ?? '';
+    $driverOf = fn ($l) => $l->driver_name ?? $l->bookingTruck?->driver?->full_name ?? $l->truck?->driver?->full_name ?? $expense->truck?->driver?->full_name ?? '';
     $places = $lines->pluck('description')->unique()->join(', ');
     $date = optional($expense->payment_date ? \Carbon\Carbon::parse($expense->payment_date) : $expense->created_at)->format('d/m/Y');
     $title = 'MIZANI ' . $places . ' GARI ' . $lines->map($truckOf)->filter()->unique()->count() . ' -' . $date;

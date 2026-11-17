@@ -181,7 +181,7 @@
         </div>
         <div class="info-cell">
             <div class="info-label">Reference</div>
-            <div class="info-value">{{ $expense->booking->booking_number ?? $expense->truck->reg_no ?? '—' }}</div>
+            <div class="info-value">{{ $expense->booking->booking_number ?? ($expense->lines->pluck('truck.reg_no')->filter()->unique()->join(', ') ?: '—') }}</div>
         </div>
         <div class="info-cell">
             <div class="info-label">Status</div>

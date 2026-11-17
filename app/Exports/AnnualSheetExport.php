@@ -52,9 +52,10 @@ class AnnualSheetExport implements WithEvents, WithTitle
         $sheet->getStyle("B{$row}:G{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E3A8A');
         $row++;
 
-        $annualLines = ExpenseLine::whereHas('expenseOrder', function ($q) {
-            $q->where('category', 'truck')->where('truck_id', $this->truck->id);
-        })->whereYear('created_at', $this->year)->get();
+        // A Truck order may cover several trucks: each line counts for its own truck.
+        $annualLines = ExpenseLine::where('truck_id', $this->truck->id)
+            ->whereHas('expenseOrder', fn ($q) => $q->where('category', 'truck'))
+            ->whereYear('created_at', $this->year)->get();
 
         foreach ($annualLines as $line) {
             $sheet->setCellValue("B{$row}", $line->created_at->format('Y-m-d'));

@@ -23,7 +23,7 @@ class ExpenseOrderController extends Controller
 {
     protected function eagerLoad()
     {
-        return ['lines.vendor', 'lines.bookingTruck.truck', 'lines.bookingTruck.driver', 'lines.bookingTruck.trip', 'booking.client', 'bookings.client', 'truck.driver', 'account', 'vendor', 'subcategory', 'priceChanges.user', 'parentOrder', 'creator', 'approver', 'payer'];
+        return ['lines.vendor', 'lines.truck.driver', 'lines.bookingTruck.truck', 'lines.bookingTruck.driver', 'lines.bookingTruck.trip', 'booking.client', 'bookings.client', 'truck.driver', 'account', 'vendor', 'subcategory', 'priceChanges.user', 'parentOrder', 'creator', 'approver', 'payer'];
     }
 
     /** On the Vibali forms the exchange rates come from the order (req. 16), not from each line. */
@@ -34,6 +34,7 @@ class ExpenseOrderController extends Controller
             'lines.*.line_category' => 'required|in:fuel,vibali_tunduma,vibali_congo,mengine',
             'lines.*.vendor_id' => 'nullable|exists:vendors,id',
             'lines.*.booking_truck_id' => 'nullable|exists:booking_trucks,id',
+            'lines.*.truck_id' => 'nullable|exists:trucks,id',
             'lines.*.driver_name' => 'nullable|string|max:120',
             'lines.*.group_key' => 'nullable|string',
             'lines.*.description' => 'required|string',
@@ -65,7 +66,6 @@ class ExpenseOrderController extends Controller
             'payment_mode' => 'sometimes|in:on_spot,bill',
             'return_border' => 'nullable|string|max:30',
             'route_template_id' => 'nullable|exists:route_templates,id',
-            'truck_id' => 'nullable|exists:trucks,id',
             'usd_rate' => 'nullable|numeric|min:0.0001',
             'vendor_id' => 'nullable|exists:vendors,id',
             'zmk_rate' => 'nullable|numeric|min:0.0001',
@@ -85,7 +85,8 @@ class ExpenseOrderController extends Controller
             'payment_mode' => $validated['payment_mode'],
             'return_border' => $validated['return_border'] ?? null,
             'route_template_id' => $validated['route_template_id'] ?? null,
-            'truck_id' => $validated['truck_id'] ?? null,
+            // A Truck order's trucks are on its lines; truck_id mirrors the first one for older exports.
+            'truck_id' => collect($validated['lines'])->pluck('truck_id')->filter()->first(),
             'usd_rate' => $validated['usd_rate'] ?? null,
             'vendor_id' => $validated['vendor_id'] ?? null,
             'zmk_rate' => $validated['zmk_rate'] ?? null,

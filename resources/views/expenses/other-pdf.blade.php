@@ -2,7 +2,7 @@
 @php
     $lines = $expense->lines->sortBy('id')->values();
     $fmt = fn ($v) => number_format((float) $v, fmod((float) $v, 1) ? 2 : 0);
-    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $expense->truck?->reg_no ?? '';
+    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $l->truck?->reg_no ?? $expense->truck?->reg_no ?? '';
     $date = optional($expense->payment_date ? \Carbon\Carbon::parse($expense->payment_date) : $expense->created_at)->format('d/m/Y');
     $title = mb_strtoupper($expense->subcategory?->name ?? 'Other') . ' - ' . $date;
     $hasTrucks = $lines->contains(fn ($l) => $truckOf($l) !== '');

@@ -81,11 +81,23 @@ class ExpenseOrderRulesTest extends TestCase
 
     public function test_office_and_truck_category_rules(): void
     {
-        $truck = Truck::first();
+        [$a, $b] = Truck::orderBy('reg_no')->take(2)->get();
+        $on = fn (Truck $truck, int $amount = 1000) => $this->line('mengine', ['truck_id' => $truck->id, 'original_amount' => $amount, 'group_key' => 'g1']);
 
-        $this->postJson('/api/expense-orders', $this->order('office', 'mengine', ['truck_id' => $truck->id]))->assertStatus(422);
-        $this->postJson('/api/expense-orders', $this->order('truck', 'mengine'))->assertStatus(422)->assertJsonValidationErrors('truck_id');
-        $this->postJson('/api/expense-orders', $this->order('truck', 'mengine', ['truck_id' => $truck->id]))->assertCreated();
+        $this->postJson('/api/expense-orders', $this->order('office', 'mengine', lines: [$on($a)]))->assertStatus(422);
+        $this->postJson('/api/expense-orders', $this->order('truck', 'mengine'))->assertStatus(422)->assertJsonValidationErrors('lines');
+
+        // Client request (17 Nov): one Truck order can cover several trucks, each line naming its truck.
+        $order = $this->postJson('/api/expense-orders', $this->order('truck', 'mengine', lines: [$on($a, 50000), $on($b, 50000)]))->assertCreated()->json();
+        $this->assertSame(100000.0, (float) $order['total_amount']);
+        $this->assertEqualsCanonicalizing([$a->reg_no, $b->reg_no], collect($order['lines'])->pluck('truck.reg_no')->all());
+
+        // Each truck's annual report counts only its own line.
+        foreach ([$a, $b] as $truck) {
+            $lines = \App\Models\ExpenseLine::where('truck_id', $truck->id)->whereHas('expenseOrder', fn ($q) => $q->where('category', 'truck'))->get();
+            $this->assertSame(50000.0, (float) $lines->sum('amount'));
+        }
+        $this->get("/api/expense-orders/{$order['id']}/download")->assertOk();
     }
 
     public function test_type_cannot_change_on_edit(): void

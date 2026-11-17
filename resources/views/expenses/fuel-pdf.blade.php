@@ -3,7 +3,7 @@
     // Provisional layout until the client's fuel forms (with and without price) arrive.
     $lines = $expense->lines;
     $vendors = $lines->pluck('vendor.company_name')->filter()->unique()->join(', ');
-    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $expense->truck?->reg_no ?? '—';
+    $truckOf = fn ($l) => $l->bookingTruck?->truck?->reg_no ?? $l->truck?->reg_no ?? $expense->truck?->reg_no ?? '—';
     $currency = $lines->pluck('currency')->unique()->count() === 1 ? $lines->first()?->currency : null;
     $money = fn ($v) => $v === null ? '' : number_format((float) $v, 2);
     $date = optional($expense->created_at)->format('d/m/Y');

@@ -52,13 +52,16 @@ class ExpenseOrderRules
 
         $bookingIds = $data['booking_ids'] ?? [];
         $truckLineIds = collect($data['lines'])->pluck('booking_truck_id')->filter()->unique();
+        $lineTrucks = collect($data['lines'])->pluck('truck_id');
 
         match ($data['category']) {
-            'trip' => self::assertTrip($bookingIds, $truckLineIds->all()),
-            'truck' => empty($data['truck_id']) || $bookingIds || $truckLineIds->isNotEmpty()
-                ? self::fail('truck_id', 'A Truck expense needs one truck and no bookings.')
+            'trip' => $lineTrucks->filter()->isNotEmpty()
+                ? self::fail('lines', 'Trip lines take their trucks from the bookings.')
+                : self::assertTrip($bookingIds, $truckLineIds->all()),
+            'truck' => $lineTrucks->contains(fn ($id) => empty($id)) || $bookingIds || $truckLineIds->isNotEmpty()
+                ? self::fail('lines', 'A Truck expense needs a truck on every line and no bookings.')
                 : null,
-            'office' => !empty($data['truck_id']) || $bookingIds || $truckLineIds->isNotEmpty()
+            'office' => $lineTrucks->filter()->isNotEmpty() || $bookingIds || $truckLineIds->isNotEmpty()
                 ? self::fail('category', 'An Office expense cannot have a truck or booking.')
                 : null,
         };
