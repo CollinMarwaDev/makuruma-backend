@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -29,6 +30,11 @@ class TrackingWorkbook
 {
     public const TEMPLATE = 'templates/tracking-template.xlsx';
     private const FIRST_ROW = 3;
+
+    /** Hidden sheet with the status names, and how many rows get the status drop-down. */
+    private const STATUS_SHEET = 'STATUSES';
+
+    private const STATUS_ROWS = 500;
     private const ID_COLUMN = 'Y';
     private const MAX_ROWS = 2000;
 
@@ -114,9 +120,37 @@ class TrackingWorkbook
             $sheet->getColumnDimension(self::ID_COLUMN)->setVisible(false);
         }
 
+        $this->addStatusDropDown($book);
         $book->setActiveSheetIndex(0);
 
         return $book;
+    }
+
+    /**
+     * UAT 20 Nov: CURRENT STATUS is picked from a list of the active statuses (hidden "STATUSES" sheet),
+     * so a typo can't be typed in. The upload still checks every status.
+     */
+    private function addStatusDropDown(Spreadsheet $book): void
+    {
+        $labels = TrackingStatus::where('is_active', true)->orderBy('sort_order')->pluck('label')->map(fn ($l) => mb_strtoupper($l))->values();
+        $list = $book->createSheet();
+        $list->setTitle(self::STATUS_SHEET);
+        foreach ($labels as $i => $label) {
+            $list->setCellValueExplicit('A' . ($i + 1), $label, DataType::TYPE_STRING);
+        }
+        $list->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+
+        foreach (self::SHEETS as $title) {
+            $validation = $this->sheetFor($book, $title)->getDataValidation('G' . self::FIRST_ROW . ':G' . (self::FIRST_ROW + self::STATUS_ROWS));
+            $validation->setType(DataValidation::TYPE_LIST)
+                ->setErrorStyle(DataValidation::STYLE_STOP)
+                ->setAllowBlank(true)
+                ->setShowDropDown(true)
+                ->setShowErrorMessage(true)
+                ->setErrorTitle('Status not in the list')
+                ->setError('Pick a status from the list.')
+                ->setFormula1("'" . self::STATUS_SHEET . "'!\$A\$1:\$A\$" . max(1, $labels->count()));
+        }
     }
 
     // --- Import ------------------------------------------------------------------------------

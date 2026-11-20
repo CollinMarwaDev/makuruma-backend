@@ -69,17 +69,17 @@ class DashboardController extends Controller
         $completedTrips = Trip::whereNotNull('return_booking_truck_id')->count();
         $awaitingReturn = $totalTrips - $completedTrips;
 
-        $thisMonth = \App\Models\Booking::whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
+        // A booking's month is its booking date: the average ETA of its trucks (UAT 20 Nov).
+        $thisMonth = \App\Models\Booking::whereBetween('booking_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
             ->count();
 
-        // Bookings created per month for the last 6 months, split by direction (Go / Return).
+        // Bookings per booking month for the last 6 months, split by direction (Go / Return).
         $from = now()->subMonths(5)->startOfMonth();
         $monthly = \App\Models\Booking::select(
-            DB::raw("DATE_FORMAT(created_at, '%Y-%m') as month"),
+            DB::raw("DATE_FORMAT(booking_date, '%Y-%m') as month"),
             'direction',
             DB::raw('count(*) as total')
-        )->where('created_at', '>=', $from)->groupBy('month', 'direction')->get();
+        )->whereBetween('booking_date', [$from->toDateString(), now()->endOfMonth()->toDateString()])->groupBy('month', 'direction')->get();
 
         $trend = collect(range(5, 0))->map(function (int $ago) use ($monthly) {
             $month = now()->subMonths($ago)->format('Y-m');

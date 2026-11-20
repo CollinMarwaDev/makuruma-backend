@@ -66,7 +66,7 @@ class ExpenseOrder extends Model
         'usd_total' => 'decimal:2',
     ];
 
-    protected $appends = ['payment_account', 'is_legacy_mixed', 'pending_price', 'price_overdue'];
+    protected $appends = ['form_number', 'payment_account', 'is_legacy_mixed', 'pending_price', 'price_overdue'];
 
     public function lines(): HasMany
     {
@@ -132,6 +132,25 @@ class ExpenseOrder extends Model
     public function trucks(): BelongsToMany
     {
         return $this->belongsToMany(Truck::class, 'expense_order_trucks');
+    }
+
+    /** UAT 20 Nov: the reference number typed on the form is the form number; the system number is a fallback. */
+    public function getFormNumberAttribute(): string
+    {
+        return $this->reference_no ?: ($this->serial ?? $this->order_number);
+    }
+
+    /** Download name, e.g. "expense-VC 0125.pdf" (characters a file name can't hold become "-"). */
+    public function fileName(string $extension, string $suffix = ''): string
+    {
+        return 'expense-' . preg_replace('#[\\\\/:*?"<>|]+#', '-', $this->form_number) . $suffix . '.' . $extension;
+    }
+
+    /** UAT 20 Nov: the user who approved an order may still edit it until it is paid. */
+    public function canBeEditedBy(?User $user): bool
+    {
+        return $this->status === 'pending'
+            || ($this->status === 'approved' && $user && $this->approved_by === $user->id);
     }
 
     /** Account name, so exports and the PDF keep printing it. */

@@ -83,5 +83,13 @@
                 <td class="num">${{ $fmt($print['usdTotal']) }}</td>
             </tr>
         @endif
+        @foreach (['driver' => 'TO DRIVER', 'agent' => 'STAYS WITH AGENT'] as $payee => $label)
+            @continue(empty($print['payeeTotals'][$payee]))
+            <tr class="payee">
+                <td></td>
+                <td colspan="3" class="num">{{ $label }}</td>
+                <td class="num">{{ collect($print['payeeTotals'][$payee])->map(fn ($v, $c) => $money($c, $v))->join(' + ') }}</td>
+            </tr>
+        @endforeach
     </tbody>
 </table>

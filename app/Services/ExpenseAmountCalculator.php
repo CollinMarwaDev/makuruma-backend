@@ -119,15 +119,60 @@ class ExpenseAmountCalculator
             'clients' => $order->bookings->pluck('client.company_name')->filter()->unique()->join(', '),
             'date' => optional($order->payment_date ? \Carbon\Carbon::parse($order->payment_date) : $order->created_at)->format('d/m/Y'),
             'grandTotal' => round($total('TZS') + $zmkConverted + $usdConverted, 2),
+            // UAT 20 Nov: money handed to the driver vs kept by the agent, per currency (blank payee = older lines).
+            'payeeTotals' => collect(['driver', 'agent'])->mapWithKeys(fn ($payee) => [$payee => $lines->where('payee', $payee)
+                ->groupBy('currency')->map(fn ($l) => round($l->sum('total'), 2))->filter()->sortKeysUsing(fn ($a, $b) => array_search($a, self::CURRENCY_ORDER) <=> array_search($b, self::CURRENCY_ORDER))->all()])
+                ->filter()->all(),
             'perTruck' => $perTruck,
             // Lines whose truck set differs from the order's trucks list them separately (req. 23).
-            'subsetLines' => $lines->where('is_flat', false)->filter(fn ($l) => count($l['trucks']) !== $allTrucks->count())->values(),
+            'subsetLines' => self::truckLists($lines->where('is_flat', false)->filter(fn ($l) => count($l['trucks']) !== $allTrucks->count())),
+            // Form 180: every line's trucks, lines of the same kind in one list (UAT 20 Nov).
+            'truckLists' => self::truckLists($lines->where('is_flat', false)),
             'tshTotal' => $total('TZS'),
             'usdConverted' => $usdConverted,
             'usdTotal' => $total('USD'),
             'zmkConverted' => $zmkConverted,
             'zmkTotal' => $total('ZMK'),
         ];
+    }
+
+    /**
+     * Truck lists under a Vibali printout. Lines of the same kind (e.g. "POSHO(T646 DVW) 14/11–21/11" and
+     * "POSHO(T143 ENH) 21/11") share one list; when their amounts differ the list shows each truck's amount
+     * instead of one amount in the heading (UAT 20 Nov: one Posho table, not one per truck).
+     *
+     * @return Collection<int, array{title: string, currency: string, per_truck: ?float, rows: array<int, array{truck: string, amount: float}>}>
+     */
+    public static function truckLists(Collection $lines): Collection
+    {
+        return $lines->values()
+            ->groupBy(fn ($l) => $l['currency'] . '|' . self::kindOf($l['description']))
+            ->map(function (Collection $group) {
+                $rows = [];
+                foreach ($group as $line) {
+                    foreach ($line['trucks'] as $reg) {
+                        $rows[$reg] = ['truck' => $reg, 'amount' => ($rows[$reg]['amount'] ?? 0) + $line['per_truck']];
+                    }
+                }
+                $amounts = collect($rows)->pluck('amount')->unique();
+
+                return [
+                    'title' => $group->count() === 1 ? $group->first()['description'] : self::kindOf($group->first()['description']),
+                    'currency' => $group->first()['currency'],
+                    'per_truck' => $amounts->count() === 1 ? (float) $amounts->first() : null,
+                    'rows' => array_values($rows),
+                ];
+            })
+            ->values();
+    }
+
+    /** "POSHO(T646 DVW) 14/11/2026---21/11/2026" → "POSHO": the text before any bracket or date. */
+    public static function kindOf(string $description): string
+    {
+        $kind = preg_replace(['/\s*\(.*$/s', '/\s+\d{1,2}\/\d{1,2}.*$/s'], '', $description);
+        $kind = mb_strtoupper(trim(preg_replace('/\s+/', ' ', $kind)));
+
+        return $kind !== '' ? $kind : mb_strtoupper(trim($description));
     }
 
     /** "300 X 10 = 3,000" when there is a multiplier, else the amount. */

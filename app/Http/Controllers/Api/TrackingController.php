@@ -9,10 +9,12 @@ use App\Models\Truck;
 use App\Models\TruckMilestone;
 use App\Services\TrackingLegService;
 use App\Services\TrackingTimeline;
+use App\Services\BookingNeedsService;
 use App\Services\TrackingWorkbook;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -150,11 +152,19 @@ class TrackingController extends Controller
         return $workbook->import($validated['file']->getRealPath(), (bool) ($validated['apply'] ?? false));
     }
 
+    /** UAT 20 Nov: trucks with no booking, and trucks that need their next booking soon. */
+    public function bookingNeeds(BookingNeedsService $needs)
+    {
+        return $needs->list();
+    }
+
     private function legQuery(string $scope): Builder
     {
         return BookingTruck::query()
             ->whereNull('removed_at')
-            ->when($scope === 'active', fn ($q) => $q->where('current_status', '!=', TrackingStatus::OFFLOADED))
+            // Active also keeps legs offloaded in the last tracking.offloaded_visible_days days (UAT 20 Nov).
+            ->when($scope === 'active', fn ($q) => $q->where(fn ($q) => $q->where('current_status', '!=', TrackingStatus::OFFLOADED)
+                ->orWhereDate(DB::raw('COALESCE(offloading_date, completed_at)'), '>=', now()->subDays(config('tracking.offloaded_visible_days'))->toDateString())))
             ->when(in_array($scope, ['offloaded', 'completed'], true), fn ($q) => $q->where('current_status', TrackingStatus::OFFLOADED));
     }
 

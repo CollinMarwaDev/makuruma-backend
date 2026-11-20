@@ -156,7 +156,16 @@ class BookingTruckService
             'loading_point' => $shared('loading_point'),
             'offloading_point' => $shared('offloading_point'),
             'eta' => $trucks->pluck('eta')->filter()->min(),
+            'booking_date' => self::averageDate($trucks->pluck('eta'), $booking->created_at)->toDateString(),
         ]);
+    }
+
+    /** UAT 20 Nov: the booking month is the average of the trucks' ETAs; no ETA → the fallback (creation date). */
+    public static function averageDate(iterable $etas, $fallback): \Carbon\Carbon
+    {
+        $stamps = collect($etas)->filter()->map(fn ($eta) => \Carbon\Carbon::parse($eta)->startOfDay()->timestamp);
+
+        return $stamps->isEmpty() ? \Carbon\Carbon::parse($fallback ?? now()) : \Carbon\Carbon::createFromTimestamp((int) round($stamps->avg()));
     }
 
     private function startLeg(Booking $booking, BookingTruck $bookingTruck, Truck $truck): void

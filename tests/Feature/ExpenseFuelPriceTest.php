@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BookingTruck;
 use App\Models\Client;
 use App\Models\ExpenseOrder;
 use App\Models\Role;
@@ -49,7 +50,9 @@ class ExpenseFuelPriceTest extends TestCase
 
     public function test_fuel_lines_need_truck_driver_and_litres_but_not_a_price(): void
     {
-        $this->postJson('/api/expense-orders', $this->order([$this->line(0, ['driver_name' => ''])]))->assertStatus(422);
+        // UAT 20 Nov: a blank driver is filled from the leg instead of being refused.
+        $this->postJson('/api/expense-orders', $this->order([$this->line(0, ['driver_name' => ''])]))->assertCreated()
+            ->assertJsonPath('lines.0.driver_name', BookingTruck::with('driver')->find($this->booking['booking_trucks'][0]['id'])->driver->full_name);
         $this->postJson('/api/expense-orders', $this->order([$this->line(0, ['quantity' => 0])]))->assertStatus(422);
         $this->postJson('/api/expense-orders', $this->order([$this->line(0)], ['category' => 'office', 'booking_ids' => []]))->assertStatus(422);
 
@@ -73,7 +76,7 @@ class ExpenseFuelPriceTest extends TestCase
     {
         $order = $this->postJson('/api/expense-orders', $this->order([$this->line(0), $this->line(1, ['unit_rate' => 3000])]))->json();
         $this->postJson("/api/expense-orders/{$order['id']}/approve")->assertOk();
-        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid")->assertStatus(422);
+        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid", ['paid_at' => now()->toDateString()])->assertStatus(422);
 
         [$unpriced, $priced] = collect($order['lines'])->partition(fn ($l) => $l['unit_rate'] === null)->map->first()->values()->all();
 
@@ -90,7 +93,7 @@ class ExpenseFuelPriceTest extends TestCase
         $this->assertSame('Price board changed on Wednesday', $updated['price_changes'][0]['reason']);
         $this->assertSame('System Admin', $updated['price_changes'][0]['user']['name']);
 
-        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid")->assertOk();
+        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid", ['paid_at' => now()->toDateString()])->assertOk();
     }
 
     public function test_editing_a_pending_order_logs_price_changes_with_a_reason(): void
@@ -134,7 +137,7 @@ class ExpenseFuelPriceTest extends TestCase
         Notification::assertNothingSent();
 
         $this->postJson("/api/expense-orders/{$order['id']}/approve")->assertOk();
-        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid")->assertOk();
+        $this->postJson("/api/expense-orders/{$order['id']}/mark-paid", ['paid_at' => now()->toDateString()])->assertOk();
     }
 
     public function test_fuel_pdf_downloads_with_and_without_price(): void

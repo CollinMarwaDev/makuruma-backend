@@ -15,12 +15,12 @@
 <body>
     @include('expenses.partials.vibali-letterhead', ['title' => $title])
     @if ($parent)
-        <p style="text-align: center; margin: -4px 0 8px;">Settles going order NO: {{ $parent->serial ?? $parent->order_number }} (${{ $fmt($parent->usd_total) }})</p>
+        <p style="text-align: center; margin: -4px 0 8px;">Settles going order NO: {{ $parent->form_number }} (${{ $fmt($parent->usd_total) }})</p>
     @endif
     @include('expenses.partials.vibali-lines')
     @if ($parent)
         <table style="width: 50%; margin-left: auto;">
-            <tr><td>Going order (NO: {{ $parent->serial ?? $parent->order_number }})</td><td class="num">${{ $fmt($parent->usd_total) }}</td></tr>
+            <tr><td>Going order (NO: {{ $parent->form_number }})</td><td class="num">${{ $fmt($parent->usd_total) }}</td></tr>
             <tr><td>Settlement (this form)</td><td class="num">${{ $fmt($print['usdTotal']) }}</td></tr>
             <tr class="grand"><td>Trip total</td><td class="num">${{ $fmt((float) $parent->usd_total + $print['usdTotal']) }}</td></tr>
         </table>

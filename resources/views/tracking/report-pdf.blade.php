@@ -3,23 +3,23 @@
 <head>
     <meta charset="utf-8">
     <style>
-        body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 10px; }
+        body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 12px; }
         .header { display: table; width: 100%; margin-bottom: 6px; }
         .logo-box { display: table-cell; width: 90px; vertical-align: middle; }
         .logo-img { height: 50px; }
         .company-info { display: table-cell; vertical-align: middle; padding-left: 10px; }
-        .company-name { font-size: 18px; font-weight: bold; color: #111827; }
-        .company-address { font-size: 10px; color: #374151; }
-        .section-title { text-align: center; font-size: 13px; font-weight: bold; margin: 16px 0 8px; text-decoration: underline; }
+        .company-name { font-size: 21.5px; font-weight: bold; color: #111827; }
+        .company-address { font-size: 12px; color: #374151; }
+        .section-title { text-align: center; font-size: 15.5px; font-weight: bold; margin: 16px 0 8px; text-decoration: underline; }
         .info-grid { display: table; width: 100%; margin-bottom: 14px; }
-        .info-cell { display: table-cell; width: 33%; padding: 4px 0; font-size: 10px; }
-        .info-label { color: #6b7280; font-size: 8px; text-transform: uppercase; }
+        .info-cell { display: table-cell; width: 33%; padding: 4px 0; font-size: 12px; }
+        .info-label { color: #6b7280; font-size: 9.5px; text-transform: uppercase; }
         .info-value { font-weight: bold; color: #111827; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        th { background: #eef2ff; color: #111827; text-align: left; padding: 5px 4px; font-size: 8px; border: 1px solid #9ca3af; text-transform: uppercase; }
-        td { padding: 5px 4px; border: 1px solid #9ca3af; font-size: 9px; }
-        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 8px; font-weight: bold; background: #dbeafe; color: #1e40af; }
-        .footer { margin-top: 20px; font-size: 8px; color: #9ca3af; text-align: center; }
+        th { background: #eef2ff; color: #111827; text-align: left; padding: 5px 4px; font-size: 9.5px; border: 1px solid #9ca3af; text-transform: uppercase; }
+        td { padding: 5px 4px; border: 1px solid #9ca3af; font-size: 11px; }
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 9.5px; font-weight: bold; background: #dbeafe; color: #1e40af; }
+        .footer { margin-top: 20px; font-size: 9.5px; color: #9ca3af; text-align: center; }
     </style>
 </head>
 <body>

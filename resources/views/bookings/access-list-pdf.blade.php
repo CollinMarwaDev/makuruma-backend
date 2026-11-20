@@ -7,7 +7,7 @@
         body {
             font-family: 'Helvetica', sans-serif;
             color: #1f2937;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .header {
@@ -33,18 +33,18 @@
         }
 
         .company-name {
-            font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
             color: #111827;
         }
 
         .company-address {
-            font-size: 11px;
+            font-size: 13px;
             color: #374151;
         }
 
         .company-email {
-            font-size: 12px;
+            font-size: 14.5px;
             font-weight: bold;
             text-align: center;
             margin: 8px 0 14px;
@@ -60,7 +60,7 @@
             color: #111827;
             text-align: left;
             padding: 5px 4px;
-            font-size: 8px;
+            font-size: 9.5px;
             border: 1px solid #9ca3af;
             text-transform: uppercase;
         }
@@ -68,7 +68,7 @@
         td {
             padding: 5px 4px;
             border: 1px solid #9ca3af;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .num {
@@ -102,7 +102,7 @@
 
         .footer {
             margin-top: 20px;
-            font-size: 8px;
+            font-size: 9.5px;
             color: #9ca3af;
             text-align: center;
         }

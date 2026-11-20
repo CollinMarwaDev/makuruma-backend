@@ -51,7 +51,7 @@ class ExpenseReportTest extends TestCase
         $go = $this->postJson('/api/expense-orders', $this->congo('go', [...$this->perTruck(300, [0, 1, 2])], ['payment_date' => '2026-02-15']))->assertCreated()->json();
         $this->postJson('/api/expense-orders', $this->congo('return', [
             ...$this->perTruck(-30, [0]),
-            ['currency' => 'USD', 'description' => 'NAULI DEREVA', 'is_flat' => true, 'line_category' => 'vibali_congo', 'multiplier' => 1, 'unit_rate' => 90],
+            ['currency' => 'USD', 'description' => 'NAULI DEREVA', 'is_flat' => true, 'line_category' => 'vibali_congo', 'payee' => 'driver', 'multiplier' => 1, 'unit_rate' => 90],
         ], ['parent_order_id' => $go['id'], 'payment_date' => '2026-02-15']))->assertCreated();
 
         $leg = BookingTruck::findOrFail($this->booking['booking_trucks'][0]['id']);
@@ -98,7 +98,7 @@ class ExpenseReportTest extends TestCase
             'currency' => 'USD',
             'description' => 'PEAGE',
             'group_key' => "g{$amount}",
-            'line_category' => 'vibali_congo',
+            'line_category' => 'vibali_congo', 'payee' => 'driver',
             'multiplier' => 1,
             'unit_rate' => $amount,
         ])->all();

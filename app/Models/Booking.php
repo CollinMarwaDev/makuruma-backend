@@ -17,12 +17,15 @@ class Booking extends Model
         'client_id',
         'source_booking_id',
         'eta',
+        'booking_date',
         'location',
         'loading_point',
         'offloading_point',
         'description',
         'created_by',
     ];
+
+    protected $casts = ['booking_date' => 'date:Y-m-d'];
 
     public function client(): BelongsTo
     {

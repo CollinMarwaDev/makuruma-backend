@@ -98,6 +98,45 @@ class ExpenseCongoTest extends TestCase
         $this->get("/api/expense-orders/{$order['id']}/download")->assertOk();
     }
 
+    /**
+     * UAT 20 Nov (order VC-00001): three Posho lines, each for one truck with its own amount, print as ONE Posho
+     * list with a Pesa column instead of three side-by-side tables that ran into each other.
+     */
+    public function test_emergency_lines_of_the_same_kind_share_one_truck_list(): void
+    {
+        $order = $this->postJson('/api/expense-orders', [
+            ...$this->order('emergency', [
+                ...$this->perTruck('VIZA & ENTRY CARD', 100, range(0, 7)),
+                ...$this->perTruck('PARKING MUKAMBO JUNCTION', 5, [0, 1, 2], ['multiplier' => 2]),
+                ...$this->perTruck('POSHO(T003 EGA) 14/11/2026---21/11/2026', 5, [2], ['multiplier' => 8]),
+                ...$this->perTruck('POSHO(T001 EGA) 21/11/2026', 5, [0]),
+                ...$this->perTruck('POSHO(T002 EGA) 20/11/2026--21/11/2026', 5, [1], ['multiplier' => 2]),
+            ]),
+            'booking_ids' => [],
+        ])->assertCreated()->json();
+        $this->assertSame('885.00', $order['usd_total']);
+
+        $lists = ExpenseAmountCalculator::printData(ExpenseOrder::findOrFail($order['id']))['truckLists'];
+        $this->assertSame(['VIZA & ENTRY CARD', 'PARKING MUKAMBO JUNCTION', 'POSHO'], $lists->pluck('title')->all());
+        $this->assertEquals(100, $lists[0]['per_truck']);
+        $this->assertEquals(10, $lists[1]['per_truck']);
+
+        $posho = $lists[2];
+        $this->assertNull($posho['per_truck']); // amounts differ → Pesa column
+        $this->assertEquals(['T003 EGA' => 40, 'T001 EGA' => 5, 'T002 EGA' => 10], collect($posho['rows'])->pluck('amount', 'truck')->all());
+
+        $this->get("/api/expense-orders/{$order['id']}/download")->assertOk();
+    }
+
+    public function test_kind_of_a_line_is_the_text_before_brackets_or_dates(): void
+    {
+        $this->assertSame('POSHO', ExpenseAmountCalculator::kindOf('POSHO(T646 DVW) 14/11/2026---21/11/2026'));
+        $this->assertSame('POSHO', ExpenseAmountCalculator::kindOf('Posho 21/11/2026'));
+        $this->assertSame('PENALTY', ExpenseAmountCalculator::kindOf('PENALTY (T825 ETF)'));
+        $this->assertSame('VIZA & ENTRY CARD', ExpenseAmountCalculator::kindOf('VIZA & ENTRY CARD'));
+        $this->assertSame('(T1) 5/11', ExpenseAmountCalculator::kindOf('(T1) 5/11'));
+    }
+
     /** Form 163: settles the going order with extra (+) and returned (−) money; a no-truck line is allowed. */
     public function test_return_settlement_163_allows_negative_lines_and_needs_a_going_order(): void
     {
@@ -105,7 +144,7 @@ class ExpenseCongoTest extends TestCase
 
         $settlement = [
             ...$this->perTruck('PARKING NOT USED (rudisha)', -30, [0, 1]),
-            ['currency' => 'USD', 'description' => 'NAULI DEREVA KUFUATA PESA', 'is_flat' => true, 'line_category' => 'vibali_congo', 'multiplier' => 1, 'unit_rate' => 100],
+            ['currency' => 'USD', 'description' => 'NAULI DEREVA KUFUATA PESA', 'is_flat' => true, 'line_category' => 'vibali_congo', 'payee' => 'driver', 'multiplier' => 1, 'unit_rate' => 100],
         ];
 
         $this->postJson('/api/expense-orders', $this->order('return', $settlement))->assertStatus(422)->assertJsonValidationErrors('parent_order_id');
@@ -146,7 +185,7 @@ class ExpenseCongoTest extends TestCase
             'currency' => 'USD',
             'description' => $description,
             'group_key' => $description,
-            'line_category' => 'vibali_congo',
+            'line_category' => 'vibali_congo', 'payee' => 'driver',
             'multiplier' => 1,
             'unit_rate' => $amount,
             ...$extra,

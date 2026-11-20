@@ -40,12 +40,13 @@ class VendorLedgerExport implements WithEvents
         // Merge fuel purchases (debits) and vendor payments (credits) into one
         // chronological ledger, exactly like the real vendor statement.
         $debits = ExpenseLine::where('vendor_id', $this->vendor->id)
-            ->with('bookingTruck.truck', 'expenseOrder')
+            ->with('bookingTruck.truck', 'truck', 'expenseOrder')
             ->get()
             ->map(fn($line) => [
-                'date' => $line->created_at,
-                'order_no' => $line->expenseOrder?->reference_no ?? $line->expense_order_id,
-                'truck' => $line->bookingTruck?->truck?->reg_no,
+                // UAT 20 Nov: dated by the filling day when the vendor gave it (e.g. Mabena), else the order's date.
+                'date' => \Carbon\Carbon::parse($line->filled_at ?? $line->expenseOrder?->payment_date ?? $line->created_at)->toDateString(),
+                'order_no' => $line->expenseOrder?->form_number ?? $line->expense_order_id,
+                'truck' => $line->bookingTruck?->truck?->reg_no ?? $line->truck?->reg_no,
                 'ltr' => $line->quantity,
                 'location' => $line->description,
                 'price' => $line->unit_rate,
@@ -56,7 +57,7 @@ class VendorLedgerExport implements WithEvents
         $credits = VendorPayment::where('vendor_id', $this->vendor->id)
             ->get()
             ->map(fn($payment) => [
-                'date' => $payment->payment_date,
+                'date' => \Carbon\Carbon::parse($payment->payment_date)->toDateString(),
                 'order_no' => null,
                 'truck' => null,
                 'ltr' => null,

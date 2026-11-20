@@ -9,8 +9,13 @@ use Illuminate\Validation\Rule;
 
 class TruckController extends Controller
 {
-    public function index()
+    /** `?for=expense`: reg no. and driver only, for the expense form's truck pickers (UAT 20 Nov). */
+    public function index(Request $request)
     {
+        if ($request->query('for') === 'expense') {
+            return Truck::with('driver:id,full_name')->orderBy('reg_no')->get(['id', 'reg_no', 'driver_id', 'status']);
+        }
+
         return Truck::with(['documents', 'trailer', 'driver'])->get();
     }
 

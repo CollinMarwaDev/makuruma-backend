@@ -149,7 +149,9 @@ class ExpenseOrderRulesTest extends TestCase
 
     private function line(string $type, array $extra = []): array
     {
-        return ['currency' => 'TZS', 'description' => 'Test', 'line_category' => $type, 'original_amount' => 1000, ...$extra];
+        $payee = str_starts_with($type, 'vibali') ? ['payee' => 'driver'] : [];
+
+        return ['currency' => 'TZS', 'description' => 'Test', 'line_category' => $type, 'original_amount' => 1000, ...$payee, ...$extra];
     }
 
     private function booking(int $truckIndex): array

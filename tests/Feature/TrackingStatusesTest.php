@@ -58,7 +58,10 @@ class TrackingStatusesTest extends TestCase
         $this->assertSame('off_duty', $leg->truck->fresh()->trip_status);
         $this->assertSame('offloaded', $leg->truck->fresh()->current_status);
 
-        $this->getJson('/api/tracking?scope=active')->assertJsonMissing(['id' => $leg->id]);
+        // Stays on Active for a day after offloading (UAT 20 Nov), then only under Offloaded.
+        $this->assertContains($leg->id, collect($this->getJson('/api/tracking?scope=active')->json())->pluck('id'));
+        $this->travel(2)->days();
+        $this->assertNotContains($leg->id, collect($this->getJson('/api/tracking?scope=active')->json())->pluck('id'));
         $this->assertSame([$leg->id], collect($this->getJson('/api/tracking?scope=offloaded')->json())->pluck('id')->all());
         $this->putJson("/api/tracking/{$leg->id}/status", ['current_status' => 'completed'])->assertStatus(422);
     }

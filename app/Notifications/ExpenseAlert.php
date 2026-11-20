@@ -24,7 +24,7 @@ class ExpenseAlert extends Notification
         return [
             'expense_order_id' => $this->order->id,
             'kind' => 'price_overdue',
-            'message' => "{$this->order->order_number} has had no fuel price for {$days} days. Enter the price so the accounts can be closed.",
+            'message' => "{$this->order->form_number} has had no fuel price for {$days} days. Enter the price so the accounts can be closed.",
             'order_number' => $this->order->order_number,
             'title' => 'Fuel price pending',
         ];

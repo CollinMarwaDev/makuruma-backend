@@ -7,12 +7,14 @@ use App\Models\Client;
 
 class BookingNumberGenerator
 {
-    public static function generate(Client $client, int $truckCount): string
+    /** $date = the booking date (average truck ETA, UAT 20 Nov); its month and year go into the number. */
+    public static function generate(Client $client, int $truckCount, ?\Carbon\Carbon $date = null): string
     {
+        $date ??= now();
         $shortCode = $client->short_code ?: strtoupper(substr($client->company_name, 0, 3));
         $trucks = str_pad($truckCount, 2, '0', STR_PAD_LEFT);
-        $month = now()->format('m');
-        $year = now()->format('Y');
+        $month = $date->format('m');
+        $year = $date->format('Y');
 
         $base = "{$shortCode}{$trucks}{$month}{$year}";
 

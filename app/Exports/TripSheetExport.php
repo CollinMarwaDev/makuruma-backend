@@ -130,7 +130,7 @@ class TripSheetExport implements WithEvents, WithTitle
 
                 foreach ($group as $l) {
                     $sheet->setCellValue("B{$row}", $l['date']);
-                    $sheet->setCellValue("C{$row}", $l['line']->expenseOrder?->order_number ?? $l['line']->expense_order_id);
+                    $sheet->setCellValue("C{$row}", $l['line']->expenseOrder?->form_number ?? $l['line']->expense_order_id);
                     $sheet->setCellValue("D{$row}", $l['description'] . ($l['share_of'] ? " (1/{$l['share_of']})" : ''));
                     $sheet->setCellValue("E{$row}", $l['value']);
                     $sheet->setCellValue("F{$row}", $l['unit']);

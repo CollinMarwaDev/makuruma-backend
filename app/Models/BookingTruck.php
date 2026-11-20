@@ -49,7 +49,7 @@ class BookingTruck extends Model
         'pod_overdue_notified_at' => 'datetime',
     ];
 
-    protected $appends = ['is_overdue', 'pod_overdue'];
+    protected $appends = ['is_overdue', 'on_active_list', 'pod_overdue'];
 
     public function booking(): BelongsTo
     {
@@ -107,6 +107,21 @@ class BookingTruck extends Model
         $isFinished = $this->current_status === TrackingStatus::OFFLOADED;
 
         return !$isFinished && now()->startOfDay()->greaterThan($eta);
+    }
+
+    /**
+     * On the Tracking Active list: every leg not yet Offloaded, and an Offloaded leg until
+     * `tracking.offloaded_visible_days` full days after its offloading date (UAT 20 Nov).
+     */
+    public function getOnActiveListAttribute(): bool
+    {
+        if ($this->current_status !== TrackingStatus::OFFLOADED) {
+            return true;
+        }
+        $offloadedOn = $this->offloading_date ?? $this->completed_at;
+
+        return $offloadedOn !== null
+            && now()->startOfDay()->lte(\Carbon\Carbon::parse($offloadedOn)->startOfDay()->addDays(config('tracking.offloaded_visible_days')));
     }
 
     /** Offloaded more than GRACE_DAYS ago and still no POD uploaded. */

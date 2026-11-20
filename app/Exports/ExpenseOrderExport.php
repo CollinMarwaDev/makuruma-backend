@@ -50,7 +50,7 @@ class ExpenseOrderExport implements WithEvents
         $sheet->mergeCells('C2:H2');
         $sheet->getStyle('C2')->getFont()->setSize(9)->setItalic(true);
 
-        $sheet->setCellValue('A4', 'EXPENSE ORDER — ' . $this->expense->order_number);
+        $sheet->setCellValue('A4', 'EXPENSE ORDER — ' . $this->expense->form_number);
         $sheet->mergeCells('A4:H4');
         $sheet->getStyle('A4')->getFont()->setBold(true)->setSize(13);
         $sheet->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);

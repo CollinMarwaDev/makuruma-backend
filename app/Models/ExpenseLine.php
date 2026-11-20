@@ -17,6 +17,7 @@ class ExpenseLine extends Model
         'booking_truck_id',
         'truck_id',
         'driver_name',
+        'filled_at',
         'group_key',
         'description',
         'currency',
@@ -32,7 +33,7 @@ class ExpenseLine extends Model
         'payee',
     ];
 
-    protected $casts = ['is_additional' => 'boolean', 'is_flat' => 'boolean'];
+    protected $casts = ['filled_at' => 'date:Y-m-d', 'is_additional' => 'boolean', 'is_flat' => 'boolean'];
 
     protected static function booted(): void
     {

@@ -14,20 +14,20 @@
 <head>
     <meta charset="utf-8">
     <style>
-        body { font-family: 'Helvetica', sans-serif; color: #111827; font-size: 10px; }
+        body { font-family: 'Helvetica', sans-serif; color: #111827; font-size: 12px; }
         .header { display: table; width: 100%; margin-bottom: 6px; }
         .logo-box { display: table-cell; width: 90px; vertical-align: middle; }
         .logo-img { height: 50px; }
         .company-info { display: table-cell; vertical-align: middle; padding-left: 10px; }
-        .company-name { font-size: 16px; font-weight: bold; }
-        .number { text-align: center; font-size: 12px; font-weight: bold; margin-top: 12px; }
-        .title { text-align: center; font-size: 12px; font-weight: bold; margin: 4px 0 12px; text-transform: uppercase; }
+        .company-name { font-size: 19px; font-weight: bold; }
+        .number { text-align: center; font-size: 14.5px; font-weight: bold; margin-top: 12px; }
+        .title { text-align: center; font-size: 14.5px; font-weight: bold; margin: 4px 0 12px; text-transform: uppercase; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #9ca3af; padding: 5px 6px; font-size: 10px; }
-        th { background: #f3f4f6; text-align: left; text-transform: uppercase; font-size: 9px; }
+        th, td { border: 1px solid #9ca3af; padding: 5px 6px; font-size: 12px; }
+        th { background: #f3f4f6; text-align: left; text-transform: uppercase; font-size: 11px; }
         .num { text-align: right; }
         .total td { font-weight: bold; background: #f9fafb; }
-        .sign { margin-top: 30px; display: table; width: 100%; font-size: 10px; }
+        .sign { margin-top: 30px; display: table; width: 100%; font-size: 12px; }
         .sign div { display: table-cell; width: 50%; }
     </style>
 </head>
@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <div class="number">NO: {{ $expense->serial ?? $expense->order_number }}</div>
+    <div class="number">NO: {{ $expense->form_number }}</div>
     <div class="title">
         FUEL{{ $vendors ? ' - ' . $vendors : '' }} - GARI {{ $lines->map($truckOf)->unique()->count() }} - {{ $date }}
         @if ($expense->bookings->isNotEmpty())

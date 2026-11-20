@@ -7,7 +7,7 @@
         body {
             font-family: 'Helvetica', sans-serif;
             color: #1f2937;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .header {
@@ -33,19 +33,19 @@
         }
 
         .company-name {
-            font-size: 18px;
+            font-size: 21.5px;
             font-weight: bold;
             color: #111827;
         }
 
         .company-address {
-            font-size: 10px;
+            font-size: 12px;
             color: #374151;
         }
 
         .section-title {
             text-align: center;
-            font-size: 13px;
+            font-size: 15.5px;
             font-weight: bold;
             margin: 16px 0 8px;
             text-decoration: underline;
@@ -61,12 +61,12 @@
             display: table-cell;
             width: 33%;
             padding: 4px 0;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .info-label {
             color: #6b7280;
-            font-size: 8px;
+            font-size: 9.5px;
             text-transform: uppercase;
         }
 
@@ -86,14 +86,14 @@
             color: #fff;
             text-align: left;
             padding: 6px 4px;
-            font-size: 8px;
+            font-size: 9.5px;
             text-transform: uppercase;
         }
 
         td {
             padding: 6px 4px;
             border-bottom: 1px solid #e5e7eb;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .total-row td {
@@ -106,7 +106,7 @@
             display: inline-block;
             padding: 2px 6px;
             border-radius: 3px;
-            font-size: 8px;
+            font-size: 9.5px;
             font-weight: bold;
         }
 
@@ -139,13 +139,13 @@
             display: table-cell;
             width: 20%;
             padding: 3px 4px;
-            font-size: 9px;
+            font-size: 11px;
             border-bottom: 1px solid #f3f4f6;
         }
 
         .audit-trail {
             margin-top: 16px;
-            font-size: 9px;
+            font-size: 11px;
             color: #4b5563;
         }
 
@@ -155,7 +155,7 @@
 
         .footer {
             margin-top: 20px;
-            font-size: 8px;
+            font-size: 9.5px;
             color: #9ca3af;
             text-align: center;
         }
@@ -172,7 +172,7 @@
         </div>
     </div>
 
-    <div class="section-title">EXPENSE ORDER — {{ $expense->order_number }}</div>
+    <div class="section-title">EXPENSE ORDER — {{ $expense->form_number }}</div>
 
     <div class="info-grid">
         <div class="info-cell">

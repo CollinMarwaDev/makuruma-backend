@@ -84,7 +84,7 @@ class ExpenseOrderRules
         }
     }
 
-    /** Req. 7, 8: a fuel line needs truck, driver and litres; the price may wait unless paid on the spot. */
+    /** Req. 7, 8: a fuel line needs truck and litres (the driver is filled in, UAT 20 Nov); the price may wait unless paid on the spot. */
     private static function assertFuel(array $data): void
     {
         if ($data['category'] === 'office') {
@@ -94,9 +94,6 @@ class ExpenseOrderRules
         foreach ($data['lines'] as $line) {
             if ($data['category'] === 'trip' && empty($line['booking_truck_id'])) {
                 self::fail('lines', 'Every fuel line needs a truck.');
-            }
-            if (!trim((string) ($line['driver_name'] ?? ''))) {
-                self::fail('lines', 'Every fuel line needs the driver\'s name.');
             }
             if ((float) ($line['quantity'] ?? 0) <= 0) {
                 self::fail('lines', 'Every fuel line needs the litres.');

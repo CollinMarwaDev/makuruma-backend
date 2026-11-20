@@ -7,7 +7,7 @@
         body {
             font-family: 'Helvetica', sans-serif;
             color: #1f2937;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         table.header-table {
@@ -20,7 +20,7 @@
             border: 1px solid #9ca3af;
             padding: 5px 6px;
             vertical-align: top;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .logo-cell {
@@ -32,20 +32,20 @@
         }
 
         .company-name {
-            font-size: 15px;
+            font-size: 18px;
             font-weight: bold;
         }
 
         .invoice-title {
             text-align: center;
-            font-size: 16px;
+            font-size: 19px;
             font-weight: bold;
             margin: 10px 0;
             text-decoration: underline;
         }
 
         .label {
-            font-size: 7px;
+            font-size: 8.5px;
             color: #6b7280;
             text-transform: uppercase;
             display: block;
@@ -61,19 +61,19 @@
             background: #eef2ff;
             border: 1px solid #9ca3af;
             padding: 5px;
-            font-size: 8px;
+            font-size: 9.5px;
             text-transform: uppercase;
         }
 
         table.lines-table td {
             border: 1px solid #9ca3af;
             padding: 5px;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .line-details {
             margin-top: 2px;
-            font-size: 9px;
+            font-size: 11px;
             color: #555;
         }
 
@@ -88,12 +88,12 @@
 
         .footer-table td {
             vertical-align: top;
-            font-size: 8px;
+            font-size: 9.5px;
             padding: 6px;
         }
 
         .bank-details {
-            font-size: 8px;
+            font-size: 9.5px;
             line-height: 1.5;
         }
     </style>

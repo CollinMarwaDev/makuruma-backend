@@ -9,11 +9,13 @@ use App\Models\Vendor;
 use App\Services\ExpenseAmountCalculator;
 use App\Services\ExpenseNumberGenerator;
 use App\Services\ExpenseOrderRules;
+use App\Services\ExpensePrintout;
 use App\Services\ExpensePriceService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\ExpenseFormSheet;
 use App\Exports\ExpenseOrderExport;
 use App\Exports\FuelExpenseExport;
 use App\Exports\LineCategoryExpenseExport;
@@ -36,6 +38,7 @@ class ExpenseOrderController extends Controller
             'lines.*.booking_truck_id' => 'nullable|exists:booking_trucks,id',
             'lines.*.truck_id' => 'nullable|exists:trucks,id',
             'lines.*.driver_name' => 'nullable|string|max:120',
+            'lines.*.filled_at' => 'nullable|date|before_or_equal:today',
             'lines.*.group_key' => 'nullable|string',
             'lines.*.description' => 'required|string',
             'lines.*.currency' => 'required|in:TZS,USD,ZMK',
@@ -46,7 +49,8 @@ class ExpenseOrderController extends Controller
             'lines.*.multiplier' => 'nullable|numeric|min:0',
             'lines.*.amount_description' => 'nullable|string|max:255',
             'lines.*.is_flat' => 'sometimes|boolean',
-            'lines.*.payee' => 'nullable|in:driver,agent',
+            // UAT 20 Nov: every Vibali line says whether the money goes to the driver or stays with the agent.
+            'lines.*.payee' => 'nullable|required_if:lines.*.line_category,vibali_tunduma,vibali_congo|in:driver,agent',
             'lines.*.original_amount' => $form === 'return' ? 'nullable|numeric' : 'nullable|numeric|min:0',
             'lines.*.is_additional' => 'sometimes|boolean',
         ];
@@ -93,33 +97,64 @@ class ExpenseOrderController extends Controller
         ];
     }
 
+    /**
+     * List rows only (UAT 20 Nov: the Expenses page loaded every order with all its lines, trucks, drivers
+     * and trips). Each row carries what the list shows; the full order comes from `show` when opened.
+     */
     public function index(Request $request)
     {
-        $query = ExpenseOrder::with($this->eagerLoad());
+        $request->validate([
+            'expense_type' => 'nullable|in:fuel,vibali_tunduma,vibali_congo,mengine',
+            'form' => ['nullable', Rule::in(ExpenseOrder::FORMS)],
+            'status' => 'nullable|in:pending,approved,rejected,paid',
+        ]);
 
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-        if ($request->filled('expense_type')) {
-            $query->where('expense_type', $request->expense_type);
-        }
+        $orders = ExpenseOrder::query()
+            ->with([
+                'bookings:id,booking_number,client_id,direction', 'bookings.client:id,company_name',
+                'creator:id,name', 'approver:id,name', 'subcategory:id,name', 'account:id,name', 'truck:id,reg_no',
+                'lines:id,expense_order_id,line_category,unit_rate,booking_truck_id,truck_id',
+                'lines.bookingTruck:id,truck_id',
+                'lines.bookingTruck.truck:id,reg_no', 'lines.truck:id,reg_no',
+            ])
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->date_from))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('created_at', '<=', $request->date_to))
+            ->when($request->filled('expense_type'), fn ($q) => $q->where('expense_type', $request->expense_type))
+            ->when($request->filled('form'), fn ($q) => $q->where('form', $request->form))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->latest()
+            ->get();
 
-        return $query->latest()->get();
+        return $orders->map(fn (ExpenseOrder $order) => [
+            ...$order->only([
+                'id', 'category', 'created_at', 'expense_type', 'form', 'form_number', 'initiated_by', 'is_legacy_mixed',
+                'order_number', 'paid_at', 'payment_date', 'pending_price', 'price_overdue', 'reference_no', 'status',
+                'total_amount', 'usd_total',
+            ]),
+            'approver' => $order->approver?->only(['id', 'name']),
+            'bookings' => $order->bookings->map(fn ($b) => [
+                'booking_number' => $b->booking_number, 'client' => ['company_name' => $b->client?->company_name], 'direction' => $b->direction, 'id' => $b->id,
+            ])->values(),
+            'creator' => $order->creator?->only(['id', 'name']),
+            'line_categories' => $order->lines->pluck('line_category')->unique()->values(),
+            'subcategory' => $order->subcategory?->only(['id', 'name']),
+            // A Truck order's trucks are on its lines; older orders kept one truck on the order.
+            'truck_reg_nos' => $order->lines->map(fn ($l) => $l->truck?->reg_no ?? $l->bookingTruck?->truck?->reg_no)->filter()->unique()->values()
+                ->whenEmpty(fn ($c) => $order->truck ? collect([$order->truck->reg_no]) : $c),
+        ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate(array_merge([
-            'reference_no' => 'required|string|unique:expense_orders,reference_no',
+            'reference_no' => ['required', 'string', 'max:50', Rule::unique('expense_orders', 'reference_no')->where('expense_type', $request->input('expense_type'))],
             'category' => 'required|in:trip,office,truck',
             'expense_type' => 'required|in:fuel,vibali_tunduma,vibali_congo,mengine',
             'form' => ['nullable', Rule::in(ExpenseOrder::FORMS)],
         ], $this->headerRules(), $this->lineRules($request->input('form'))));
 
         $validated['payment_mode'] ??= ($validated['form'] ?? null) === 'emergency' ? 'on_spot' : $this->defaultPaymentMode($validated);
+        $validated['lines'] = $this->fillFuelDrivers($validated['lines']);
         $validated['booking_ids'] = $this->bookingIds($validated, $validated['form'] ?? null);
         ExpenseOrderRules::assertValid($validated);
         $validated['lines'] = ExpenseAmountCalculator::prepareLines($validated['lines'], $validated, $validated['expense_type'], $validated['form'] ?? null);
@@ -155,19 +190,25 @@ class ExpenseOrderController extends Controller
         return $expenseOrder->load($this->eagerLoad());
     }
 
-    /** Type, category and number never change; the rest of a pending order can be edited. */
+    /**
+     * Type, category and system number never change; the rest of a pending order can be edited, and
+     * the user who approved an order can still edit it until it is paid (UAT 20 Nov).
+     */
     public function update(Request $request, ExpenseOrder $expenseOrder)
     {
-        if ($expenseOrder->status !== 'pending') {
-            return response()->json(['message' => 'Only pending expense orders can be edited.'], 422);
+        if (!$expenseOrder->canBeEditedBy($request->user())) {
+            return response()->json(['message' => $expenseOrder->status === 'approved'
+                ? 'Only the person who approved this order can edit it before it is paid.'
+                : 'Only pending expense orders can be edited.'], 422);
         }
 
         $validated = $request->validate(array_merge([
             'price_change_reason' => 'nullable|string|max:255',
-            'reference_no' => 'required|string|unique:expense_orders,reference_no,' . $expenseOrder->id,
+            'reference_no' => ['required', 'string', 'max:50', Rule::unique('expense_orders', 'reference_no')->where('expense_type', $expenseOrder->expense_type)->ignore($expenseOrder->id)],
         ], $this->headerRules(), $this->lineRules($expenseOrder->form)));
 
         $validated['payment_mode'] ??= $this->defaultPaymentMode($validated);
+        $validated['lines'] = $this->fillFuelDrivers($validated['lines']);
         $validated['booking_ids'] = $this->bookingIds($validated, $expenseOrder->form);
         ExpenseOrderRules::assertValid([
             ...$validated,
@@ -250,6 +291,31 @@ class ExpenseOrderController extends Controller
         return BookingTruck::whereIn('id', $legIds)->distinct()->pluck('booking_id')->all();
     }
 
+    /**
+     * UAT 20 Nov: a fuel line without a driver's name gets the driver of its leg (Trip order) or of its
+     * truck (Truck order); the user can still type another name.
+     *
+     * @param array<int, array<string, mixed>> $lines
+     * @return array<int, array<string, mixed>>
+     */
+    protected function fillFuelDrivers(array $lines): array
+    {
+        $legs = BookingTruck::with('driver:id,full_name', 'truck.driver:id,full_name')
+            ->whereIn('id', collect($lines)->pluck('booking_truck_id')->filter())->get()->keyBy('id');
+        $trucks = \App\Models\Truck::with('driver:id,full_name')->whereIn('id', collect($lines)->pluck('truck_id')->filter())->get()->keyBy('id');
+
+        return array_map(function (array $line) use ($legs, $trucks) {
+            if (($line['line_category'] ?? null) !== 'fuel' || trim((string) ($line['driver_name'] ?? '')) !== '') {
+                return $line;
+            }
+            $leg = $legs->get($line['booking_truck_id'] ?? null);
+            $line['driver_name'] = $leg?->driver?->full_name ?? $leg?->truck?->driver?->full_name
+                ?? $trucks->get($line['truck_id'] ?? null)?->driver?->full_name;
+
+            return $line;
+        }, $lines);
+    }
+
     /** Req. 8: the order's vendor (or its first line's vendor) decides On-spot or Bill-based by default. */
     protected function defaultPaymentMode(array $validated): string
     {
@@ -295,7 +361,9 @@ class ExpenseOrderController extends Controller
             return response()->json(['message' => 'Enter the fuel price on every line before marking this order as paid.'], 422);
         }
 
-        $expenseOrder->update(['status' => 'paid', 'paid_by' => $request->user()->id, 'paid_at' => now()]);
+        // UAT 20 Nov: the accountant records the day it was actually paid.
+        $validated = $request->validate(['paid_at' => 'required|date|before_or_equal:today']);
+        $expenseOrder->update(['status' => 'paid', 'paid_by' => $request->user()->id, 'paid_at' => $validated['paid_at']]);
 
         return $expenseOrder->load($this->eagerLoad());
     }
@@ -314,38 +382,23 @@ class ExpenseOrderController extends Controller
     public function download(Request $request, ExpenseOrder $expenseOrder)
     {
         $expenseOrder->load($this->eagerLoad());
+        $pdf = Pdf::loadView(ExpensePrintout::view($expenseOrder), ExpensePrintout::data($expenseOrder, $request->boolean('show_price', true)));
 
-        $logoPath = public_path('images/logo.png');
-        $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
-
-        $view = match (true) {
-            $expenseOrder->expense_type === 'fuel' => 'expenses.fuel-pdf',
-            $expenseOrder->expense_type === 'vibali_tunduma' && $expenseOrder->form === 'route' => 'expenses.vt-route-pdf',
-            $expenseOrder->expense_type === 'vibali_tunduma' && $expenseOrder->form === 'general' => 'expenses.vt-general-pdf',
-            $expenseOrder->expense_type === 'vibali_congo' && $expenseOrder->form === 'go' => 'expenses.vc-go-pdf',
-            $expenseOrder->expense_type === 'vibali_congo' && $expenseOrder->form === 'return' => 'expenses.vc-return-pdf',
-            $expenseOrder->expense_type === 'vibali_congo' && $expenseOrder->form === 'emergency' => 'expenses.vc-emergency-pdf',
-            $expenseOrder->expense_type === 'mengine' && $expenseOrder->subcategory
-                => preg_match('/mizani|weighbridge/i', $expenseOrder->subcategory->name) ? 'expenses.other-mizani-pdf' : 'expenses.other-pdf',
-            default => 'expenses.order-pdf',
-        };
-        $data = ['expense' => $expenseOrder, 'logoBase64' => $logoBase64, 'showPrice' => $request->boolean('show_price', true)];
-        if (str_starts_with($view, 'expenses.v')) {
-            $data['print'] = ExpenseAmountCalculator::printData($expenseOrder);
-        }
-        $pdf = Pdf::loadView($view, $data);
-
-        return $pdf->download("expense-{$expenseOrder->order_number}.pdf");
+        return $pdf->download($expenseOrder->fileName('pdf'));
     }
 
-    public function downloadExcel(ExpenseOrder $expenseOrder)
+    /** UAT 20 Nov: the Excel is the order's printed form, cell by cell; orders without a typed form keep the old sheet. */
+    public function downloadExcel(Request $request, ExpenseOrder $expenseOrder)
     {
         $expenseOrder->load($this->eagerLoad());
+        $export = $expenseOrder->is_legacy_mixed || ExpensePrintout::view($expenseOrder) === ExpensePrintout::GENERIC_VIEW
+            ? new ExpenseOrderExport($expenseOrder)
+            : new ExpenseFormSheet($expenseOrder, $request->boolean('show_price', true));
 
-        return Excel::download(new ExpenseOrderExport($expenseOrder), "expense-{$expenseOrder->order_number}.xlsx");
+        return Excel::download($export, $expenseOrder->fileName('xlsx'));
     }
 
-    public function downloadCategory(ExpenseOrder $expenseOrder, string $category)
+    public function downloadCategory(Request $request, ExpenseOrder $expenseOrder, string $category)
     {
         $expenseOrder->load($this->eagerLoad());
 
@@ -358,11 +411,15 @@ class ExpenseOrderController extends Controller
             return response()->json(['message' => 'No lines of this category on this order.'], 404);
         }
 
-        $export = $category === 'fuel'
-            ? new FuelExpenseExport($expenseOrder)
-            : new LineCategoryExpenseExport($expenseOrder, $category);
+        // One type per order: its category sheet is the printed form. Older mixed orders keep the per-category sheets.
+        $export = match (true) {
+            !$expenseOrder->is_legacy_mixed && ExpensePrintout::view($expenseOrder) !== ExpensePrintout::GENERIC_VIEW
+                => new ExpenseFormSheet($expenseOrder, $request->boolean('show_price', true)),
+            $category === 'fuel' => new FuelExpenseExport($expenseOrder),
+            default => new LineCategoryExpenseExport($expenseOrder, $category),
+        };
 
-        return Excel::download($export, "{$expenseOrder->order_number}-{$category}.xlsx");
+        return Excel::download($export, $expenseOrder->fileName('xlsx', "-{$category}"));
     }
 
     protected function authorizeRole(Request $request, array $allowedSlugs): void

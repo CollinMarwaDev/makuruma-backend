@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::match(['get', 'post'], 'tracking/export-excel', [TrackingController::class, 'downloadExcel']);
     Route::post('tracking/import', [TrackingController::class, 'import']);
     Route::get('tracking', [TrackingController::class, 'index']);
+    Route::get('tracking/booking-needs', [TrackingController::class, 'bookingNeeds']);
     Route::get('tracking/{bookingTruck}', [TrackingController::class, 'show']);
     Route::put('tracking/{bookingTruck}/status', [TrackingController::class, 'updateStatus']);
     Route::post('tracking/{bookingTruck}/milestones', [TrackingController::class, 'upsertMilestone']);

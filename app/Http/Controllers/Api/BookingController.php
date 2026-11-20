@@ -49,8 +49,18 @@ class BookingController extends Controller
         ];
     }
 
-    public function index()
+    /** `?for=expense`: the light list the expense form picks bookings and trucks from (UAT 20 Nov, faster form). */
+    public function index(Request $request)
     {
+        if ($request->query('for') === 'expense') {
+            return Booking::with([
+                'client:id,company_name',
+                'bookingTrucks' => fn ($q) => $q->whereNull('removed_at')->select('id', 'booking_id', 'truck_id', 'driver_id'),
+                'bookingTrucks.truck:id,reg_no,driver_id', 'bookingTrucks.truck.driver:id,full_name', 'bookingTrucks.driver:id,full_name',
+            ])->latest()->get(['id', 'booking_number', 'client_id', 'direction', 'created_at'])
+                ->each(fn (Booking $b) => $b->bookingTrucks->each->setAppends([]));
+        }
+
         return Booking::with($this->eagerLoad())->latest()->get();
     }
 
@@ -87,7 +97,8 @@ class BookingController extends Controller
         ]);
 
         $client = Client::findOrFail($validated['client_id']);
-        $bookingNumber = BookingNumberGenerator::generate($client, count($validated['trucks']));
+        $bookingDate = BookingTruckService::averageDate(array_column($validated['trucks'], 'eta'), now());
+        $bookingNumber = BookingNumberGenerator::generate($client, count($validated['trucks']), $bookingDate);
 
         $booking = DB::transaction(function () use ($validated, $bookingNumber, $request) {
             $booking = Booking::create([
