@@ -70,7 +70,8 @@ class BookingController extends Controller
     }
 
     /**
-     * Trucks for a booking of the given direction (Go: off duty; Return: on an open Go trip).
+     * Trucks for a booking of the given direction, whatever their current status (hotfix 27 Nov 2026).
+     * Go: off duty or on a Return trip (no open Go without a Return); Return: on an open Go trip.
      * Trucks missing a trailer or driver are included so the form can show why they can't be picked.
      */
     public function eligibleTrucks(Request $request)
@@ -78,7 +79,7 @@ class BookingController extends Controller
         $validated = $request->validate(['direction' => 'required|in:go,return']);
 
         return Truck::with(['trailer', 'driver.documents'])
-            ->where('trip_status', BookingTruckService::requiredTripStatus($validated['direction']))
+            ->whereIn('trip_status', BookingTruckService::allowedTripStatuses($validated['direction']))
             ->orderBy('reg_no')
             ->get()
             ->each(fn (Truck $truck) => $truck->setAttribute('is_bookable', $truck->trailer_id && $truck->driver_id));
@@ -249,7 +250,7 @@ class BookingController extends Controller
                     if ($trip && !$trip->return_booking_truck_id) {
                         $trip->delete();
                     }
-                    $truck?->update(['trip_status' => 'off_duty']);
+                    $this->trucks->releaseAfterGoRemoved($truck, $bookingTruck->id);
                 } else {
                     // This was the Return leg — the truck goes back to
                     // "awaiting return," exactly as if it was never booked.

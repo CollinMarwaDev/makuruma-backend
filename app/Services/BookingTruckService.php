@@ -14,10 +14,16 @@ use Illuminate\Validation\ValidationException;
  */
 class BookingTruckService
 {
-    /** Trip status a truck must have to join a booking of this direction. */
-    public static function requiredTripStatus(string $direction): string
+    /**
+     * Trip statuses that let a truck join a booking of this direction.
+     *
+     * Hotfix 27 Nov 2026 (truck T 270 ELE): a truck can be booked whatever its current status, e.g. a
+     * Go can be booked while its Return is still in transit so it loads again once offloaded. The only
+     * block is a second Go while a Go trip still has no Return booked (trip status "go").
+     */
+    public static function allowedTripStatuses(string $direction): array
     {
-        return $direction === 'go' ? 'off_duty' : 'go';
+        return $direction === 'go' ? ['off_duty', 'return'] : ['go'];
     }
 
     /** Contract 2.1 B-9: a truck needs a trailer and a driver to be booked. */
@@ -34,11 +40,11 @@ class BookingTruckService
             ]);
         }
 
-        if ($truck->trip_status !== self::requiredTripStatus($direction)) {
-            $expected = $direction === 'go' ? 'off duty' : 'on a Go trip awaiting return';
-            throw ValidationException::withMessages([
-                $field => "{$truck->reg_no} must be {$expected} to be added to a {$direction} booking.",
-            ]);
+        if (!in_array($truck->trip_status, self::allowedTripStatuses($direction), true)) {
+            $message = $direction === 'go'
+                ? "{$truck->reg_no} already has a Go booking with no Return booked. Book its Return before booking another Go."
+                : "{$truck->reg_no} must be on a Go trip awaiting return to be added to a return booking.";
+            throw ValidationException::withMessages([$field => $message]);
         }
     }
 
@@ -100,7 +106,7 @@ class BookingTruckService
                 'trip_code' => TripCodeGenerator::generate($newTruck->reg_no),
             ]);
             $bookingTruck->update($details);
-            $oldTruck?->update(['trip_status' => 'off_duty', 'current_status' => 'pending']);
+            $this->releaseAfterGoRemoved($oldTruck, $bookingTruck->id);
             $newTruck->update(['trip_status' => 'go', 'current_status' => 'on_route_to_loading']);
 
             return $bookingTruck;
@@ -202,12 +208,41 @@ class BookingTruckService
             if ($trip && !$trip->return_booking_truck_id) {
                 $trip->delete();
             }
-            $truck?->update(['trip_status' => 'off_duty', 'current_status' => 'pending']);
+            $this->releaseAfterGoRemoved($truck, $bookingTruck->id);
 
             return;
         }
 
         $trip?->update(['return_booking_truck_id' => null]);
         $truck?->update(['trip_status' => 'go']);
+    }
+
+    /**
+     * A Go leg was taken off (removed, swapped away or its booking deleted). Put the truck back where
+     * it was before that Go: still on its earlier Return if that Return is not offloaded yet,
+     * otherwise off duty. Its current status/location follow its newest remaining leg.
+     */
+    public function releaseAfterGoRemoved(?Truck $truck, int $removedLegId): void
+    {
+        if (!$truck) {
+            return;
+        }
+
+        $latest = BookingTruck::where('truck_id', $truck->id)
+            ->whereNull('removed_at')
+            ->where('id', '!=', $removedLegId)
+            ->with('booking:id,direction')
+            ->orderByDesc('id')
+            ->first();
+
+        $onReturn = $latest
+            && $latest->booking?->direction === 'return'
+            && $latest->current_status !== \App\Models\TrackingStatus::OFFLOADED;
+
+        $truck->update([
+            'trip_status' => $onReturn ? 'return' : 'off_duty',
+            'current_status' => $onReturn ? $latest->current_status : 'pending',
+            'current_location' => $onReturn ? $latest->current_location : $truck->current_location,
+        ]);
     }
 }
